@@ -2433,5 +2433,189 @@ details.payment-category-group[open] .group-toggle-arrow {
   background: #FDE68A;
 }
 
+/* ========================================================
+   🍃 動物森友會主題 (Animal Crossing: New Horizons Style)
+   ======================================================== */
+body[data-theme="acnh"] {
+  --bg-sand: #F7FAF5;
+  --bg-sand-dark: #EBF4E9;
+  --bg-soft: #F0F7EE;
+
+  --forest-green: #2CB383;       /* Nook 薄荷海島綠 */
+  --forest-dark: #183B2B;        /* 森林深棕綠 */
+  --forest-light: #70D1AA;
+  --forest-tint: #E8F7F0;        /* 柔和薄荷底色 */
+  --forest-glow: rgba(44, 179, 131, 0.16);
+
+  --text-primary: #1D3126;
+  --text-secondary: #364F42;
+  --text-muted: #5B7568;
+
+  --pikmin-green: #2CB383;
+  --pikmin-green-deep: #183B2B;
+  --pikmin-green-light: #52C798;
+  --pikmin-green-subtle: #E8F7F0;
+  --primary: #2CB383;
+  --primary-hover: #183B2B;
+  --primary-glow: rgba(44, 179, 131, 0.22);
+
+  --accent-gold: #F59E0B;        /* 鈴錢金黃 */
+  --warning: #F59E0B;
+  --success: #2CB383;
+
+  /* 動森草地三角形微幾何花紋背景 */
+  background-color: #F6FBF6;
+  background-image: 
+    radial-gradient(circle at 10% 10%, rgba(44, 179, 131, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 90% 80%, rgba(245, 158, 11, 0.06) 0%, transparent 45%),
+    radial-gradient(#C2E6D4 1.5px, transparent 1.5px);
+  background-size: 100% 100%, 100% 100%, 24px 24px;
+}
+
+/* 動森風格卡片圓角與邊框微調 */
+body[data-theme="acnh"] .trip-overview-card,
+body[data-theme="acnh"] .tx-card,
+body[data-theme="acnh"] .modal-sheet {
+  border-color: #D2EBDC;
+  border-radius: 24px;
+  box-shadow: 0 10px 25px -4px rgba(24, 59, 43, 0.06), 0 4px 10px rgba(0, 0, 0, 0.02);
+}
+
+/* 動森風格頂部膠囊與按鈕 */
+body[data-theme="acnh"] .trip-badge {
+  background: #E8F7F0;
+  color: #183B2B;
+  border-color: #BBE5CE;
+  font-weight: 800;
+}
+
+body[data-theme="acnh"] .btn-primary {
+  background: linear-gradient(135deg, #2CB383 0%, #20A073 100%);
+  border-color: #1E9168;
+  box-shadow: 0 4px 14px rgba(44, 179, 131, 0.35);
+}
+
+body[data-theme="acnh"] .status-pill.active {
+  background: #E8F7F0;
+  color: #183B2B;
+  border: 1px solid #B8E4CC;
+}
+
+body[data-theme="acnh"] .stat-converted-pill {
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}
+
+body[data-theme="acnh"] .pill-chip-tag.active-tag {
+  background: #2CB383;
+  color: #FFFFFF;
+  border-color: #20A073;
+}
+
+/* 🎨 主題切換器專用樣式 */
+.btn-theme-badge {
+  background: rgba(44, 179, 131, 0.12);
+  color: #183B2B;
+  border: 1px solid rgba(44, 179, 131, 0.3);
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: var(--transition);
+}
+
+.btn-theme-badge:hover {
+  background: rgba(44, 179, 131, 0.22);
+  transform: scale(1.03);
+}
+
+.btn-theme-badge:active {
+  transform: scale(0.96);
+}
+
+.theme-selector-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--forest-tint);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.theme-pill-toggle {
+  display: flex;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 3px;
+  border-radius: var(--radius-pill);
+}
+
+.btn-theme-pill {
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-theme-pill.active {
+  background: #FFFFFF;
+  color: var(--forest-dark);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* 帳本編輯 Modal 內的風格選擇卡片 */
+.theme-card-option {
+  flex: 1;
+  cursor: pointer;
+}
+
+.theme-card-option input[type="radio"] {
+  display: none;
+}
+
+.theme-card-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #FFFFFF;
+  transition: var(--transition);
+}
+
+.theme-card-box strong {
+  display: block;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.theme-card-box small {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+.theme-card-option input[type="radio"]:checked + .theme-card-box {
+  border-color: var(--primary);
+  background: var(--forest-tint);
+  box-shadow: 0 0 0 1.5px var(--primary);
+}
+
+
 
 

@@ -40,12 +40,13 @@
       <!-- 🌸 旅程總覽：極致高級森系微卡片 (僅在當前行程中顯示) -->
       <section id="travelModeHero" class="trip-overview-card" style="margin-bottom: 12px;">
         <!-- 第一列：探險狀態與日期 (整列純展現狀態與日期區間，絕對不折行) -->
-        <div class="overview-top-row" style="margin-bottom: 8px;">
+        <div class="overview-top-row" style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="status-pill active" id="heroTripStatus" style="white-space: nowrap; flex-shrink: 0;">探險進行中</span>
             <span class="hero-trip-date" id="heroTripDates" style="margin: 0; white-space: nowrap;">📅 2027/04/01 ~ 2027/04/07</span>
             <span id="travelHeroDest" style="display:none;"></span>
           </div>
+          <button type="button" id="btnToggleTripTheme" class="btn-theme-badge" title="切換帳本風格 (皮克敏 / 動物森友會)">🍃 切換動森風格</button>
         </div>
 
         <!-- 第二列：今日累積花費 與 編輯/結算 操作按鈕 (向下移至此列並排) -->
@@ -520,6 +521,33 @@
           <input type="number" id="tripBudgetInput" class="form-input" placeholder="例如：80000" required step="1000" inputmode="numeric" style="font-size: 1.15rem; font-weight: 700;">
         </div>
 
+        <!-- 🎨 帳本視覺主題風格 (皮克敏 vs 動物森友會) -->
+        <div class="form-group">
+          <label class="form-label">🎨 帳本視覺主題風格</label>
+          <div style="display: flex; gap: 10px;">
+            <label class="theme-card-option">
+              <input type="radio" name="tripThemeInput" value="pikmin" checked id="themeRadioPikmin">
+              <div class="theme-card-box">
+                <span style="font-size: 1.4rem;">🌱</span>
+                <div>
+                  <strong>皮克敏探險</strong>
+                  <small>森系自然 · 成長小花</small>
+                </div>
+              </div>
+            </label>
+            <label class="theme-card-option">
+              <input type="radio" name="tripThemeInput" value="acnh" id="themeRadioAcnh">
+              <div class="theme-card-box">
+                <span style="font-size: 1.4rem;">🍃</span>
+                <div>
+                  <strong>動物森友會</strong>
+                  <small>狸克薄荷綠 · 度假生活</small>
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
         <!-- 皮克敏探險小隊配置 (Family Members) -->
         <div class="form-group">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -667,6 +695,17 @@
         <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;">
           在此切換不同旅程帳本，或刪除已結束的舊帳本資料：
         </p>
+
+        <!-- 🎨 主題風格切換 -->
+        <div class="theme-selector-bar">
+          <div style="font-size: 0.82rem; font-weight: 700; display: flex; align-items: center; gap: 6px; color: var(--forest-dark);">
+            <span>🎨</span> 當前帳本風格
+          </div>
+          <div class="theme-pill-toggle">
+            <button type="button" class="btn-theme-pill active" id="btnThemePikmin" data-theme-btn="pikmin">🌱 皮克敏</button>
+            <button type="button" class="btn-theme-pill" id="btnThemeAcnh" data-theme-btn="acnh">🍃 動森會</button>
+          </div>
+        </div>
 
         <!-- 帳本列表容器 -->
         <div id="tripManagerList" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;"></div>

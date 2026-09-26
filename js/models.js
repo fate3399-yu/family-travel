@@ -182,6 +182,16 @@ export const PIKMIN_TYPES = {
   rock: { id: 'rock', name: '岩石皮克敏', badge: '🪨', roleTitle: '堅韌守護', color: '#64748B', flower: '🌿', desc: '硬邦邦、破除一切困難' }
 };
 
+// 🌟 動物森友會夥伴種類設定 (Animal Crossing Companions)
+export const ACNH_TYPES = {
+  nook: { id: 'nook', name: '狸克', badge: '🦝', roleTitle: '領航社長', color: '#2CB383', flower: '🍃', desc: '開拓無人島、財務大掌櫃' },
+  isabelle: { id: 'isabelle', name: '西施惠', badge: '🐶', roleTitle: '生活秘書', color: '#F59E0B', flower: '🌸', desc: '廣播播報、溫柔貼心夥伴' },
+  timmy: { id: 'timmy', name: '豆狸與粒狸', badge: '🍃', roleTitle: '小小幫手', color: '#10B981', flower: '🌿', desc: '買買買、小小旅行家' },
+  blathers: { id: 'blathers', name: '傅達', badge: '🦉', roleTitle: '博學館長', color: '#8B5CF6', flower: '📜', desc: '熱愛歷史古蹟、博物館探訪' },
+  kk: { id: 'kk', name: 'K.K.', badge: '🎸', roleTitle: '流浪音樂家', color: '#6366F1', flower: '🎵', desc: '吉他悠揚、海風夕陽' },
+  orville: { id: 'orville', name: '陸東機長', badge: '✈️', roleTitle: '渡渡航空', color: '#3B82F6', flower: '🛩️', desc: '護照簽證、翱翔出發' }
+};
+
 /**
  * 取得本機安全時區日期 (避免 UTC toISOString 造成台灣時區跳日前一天)
  */
@@ -211,6 +221,7 @@ export function createTrip({
   targetCurrency = 'JPY',
   cities = ['東京', '京都', '大阪'],
   totalBudget = 100000,
+  theme = 'pikmin', // 'pikmin' (皮克敏風格) | 'acnh' (動物森友會風格)
   categoryBudgets = {
     stay: 35000,
     food: 25000,
@@ -245,6 +256,7 @@ export function createTrip({
     targetCurrency,
     cities,
     totalBudget: Number(totalBudget),
+    theme: theme || 'pikmin',
     categoryBudgets,
     members,
     wallets,

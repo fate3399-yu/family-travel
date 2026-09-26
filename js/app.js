@@ -3,7 +3,7 @@
  * 支援多帳本管理、自訂信用卡/交通卡/行動支付工具、即時折合台幣轉換、皮克敏夥伴配置與結算報告
  */
 
-import { CURRENCIES, CATEGORIES, PAYMENT_CATEGORIES, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS, PIKMIN_TYPES, createTrip, createTransaction, getPresetPaymentItemsForCurrency, getPresetCitiesForCurrency, getPresetTagsForCurrency } from './models.js';
+import { CURRENCIES, CATEGORIES, PAYMENT_CATEGORIES, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS, PIKMIN_TYPES, ACNH_TYPES, createTrip, createTransaction, getPresetPaymentItemsForCurrency, getPresetCitiesForCurrency, getPresetTagsForCurrency } from './models.js';
 import { Storage } from './storage.js';
 import { calculateTripSummary, generateFinalTripReport, toBaseAmount } from './calculations.js';
 import { savePhoto, getPhoto } from './db.js';
@@ -56,6 +56,7 @@ const el = {
   travelHeroDest: document.getElementById('travelHeroDest'),
   heroTripStatus: document.getElementById('heroTripStatus'),
   heroTripDates: document.getElementById('heroTripDates'),
+  btnToggleTripTheme: document.getElementById('btnToggleTripTheme'),
   editCurrentTripBtn: document.getElementById('editCurrentTripBtn'),
   finishTripBtn: document.getElementById('finishTripBtn'),
   pikminSquadMembers: document.getElementById('pikminSquadMembers'),
@@ -226,6 +227,8 @@ const el = {
   closeTripManagerModalBtn: document.getElementById('closeTripManagerModalBtn'),
   tripManagerList: document.getElementById('tripManagerList'),
   tripManagerCreateBtn: document.getElementById('tripManagerCreateBtn'),
+  btnThemePikmin: document.getElementById('btnThemePikmin'),
+  btnThemeAcnh: document.getElementById('btnThemeAcnh'),
 
   // 🔗 旅伴名單與邀請管理 Modal
   inviteModal: document.getElementById('inviteModal'),
@@ -449,6 +452,13 @@ function renderFamilyMembersUI() {
   }
 }
 
+/**
+ * 🌟 取得角色代表夥伴資訊 (相容皮克敏與動物森友會)
+ */
+function getCompanionMeta(type) {
+  return PIKMIN_TYPES[type] || ACNH_TYPES[type] || { badge: '🌱', name: '夥伴', color: '#3D6B4F' };
+}
+
 function renderMemberItemTag(m, isAccount) {
   const item = document.createElement('div');
   item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: #FFFFFF; border: 1px solid #E3ECE0; padding: 6px 10px; border-radius: 8px;';
@@ -461,7 +471,7 @@ function renderMemberItemTag(m, isAccount) {
   avatar.textContent = m.avatar && m.avatar.startsWith('http') ? '👤' : (m.avatar || (isAccount ? '👨‍💼' : '👦'));
 
   const info = document.createElement('div');
-  const pikmin = PIKMIN_TYPES[m.pikminType] || { badge: '🌱' };
+  const pikmin = getCompanionMeta(m.pikminType);
 
   // 親切化名稱顯示：如果是爸爸或媽媽帳號，將帳號名與身分整合為更易懂的標題
   let displayTitle = m.name;
@@ -806,11 +816,67 @@ function initSelectOptions() {
 }
 
 /**
+ * 🎨 套用主題視覺風格 (皮克敏 pikmin / 動物森友會 acnh)
+ */
+function applyTheme(theme = 'pikmin', saveCurrentTrip = false) {
+  const normalizedTheme = theme === 'acnh' ? 'acnh' : 'pikmin';
+  document.body.dataset.theme = normalizedTheme;
+
+  // 頂部品牌圖標
+  const brandIcon = document.querySelector('.brand-icon');
+  if (brandIcon) {
+    brandIcon.textContent = normalizedTheme === 'acnh' ? '🍃' : '🌱';
+  }
+
+  // 首頁卡片狀態與切換按鈕
+  if (el.btnToggleTripTheme) {
+    el.btnToggleTripTheme.textContent = normalizedTheme === 'acnh' ? '🌱 切回皮克敏' : '🍃 切換動森風格';
+  }
+
+  if (el.heroTripStatus) {
+    el.heroTripStatus.textContent = normalizedTheme === 'acnh' ? '🏝️ 島上生活中' : '探險進行中';
+  }
+
+  const statLabel = document.querySelector('#travelModeHero .stat-label');
+  if (statLabel) {
+    statLabel.textContent = normalizedTheme === 'acnh' ? '🍃 今日花費 (當地貨幣)' : '🌱 今日累積花費 (當地貨幣)';
+  }
+
+  // 帳本管理視窗切換按鈕狀態
+  if (el.btnThemePikmin && el.btnThemeAcnh) {
+    if (normalizedTheme === 'acnh') {
+      el.btnThemeAcnh.classList.add('active');
+      el.btnThemePikmin.classList.remove('active');
+    } else {
+      el.btnThemePikmin.classList.add('active');
+      el.btnThemeAcnh.classList.remove('active');
+    }
+  }
+
+  // 若需要儲存至當前帳本
+  if (saveCurrentTrip && currentTrip) {
+    currentTrip.theme = normalizedTheme;
+    Storage.updateTrip(currentTrip);
+    const family = getCurrentFamily();
+    const familyId = family ? (family.id || family.familyId) : null;
+    if (familyId) {
+      saveCloudTrip(familyId, currentTrip);
+    }
+  }
+
+  localStorage.setItem('family_travel_theme', normalizedTheme);
+}
+
+/**
  * 載入並綁定當前旅程帳本
  */
 function loadTripData() {
   const trips = Storage.getTrips();
   currentTrip = Storage.getActiveTrip() || trips[0];
+
+  // 🎨 套用當前帳本的主題風格
+  const activeTheme = currentTrip?.theme || localStorage.getItem('family_travel_theme') || 'pikmin';
+  applyTheme(activeTheme, false);
 
   // 頂部膠囊標題與資訊更新 (皮克敏出遊分帳風格)
   if (el.currentTripBadge) {
@@ -853,13 +919,13 @@ function loadTripData() {
     el.expenseCity.appendChild(opt);
   });
 
-  // 綁定成員選項 (帶有皮克敏代表)
+  // 綁定成員選項 (帶有角色夥伴代表)
   el.expensePayer.innerHTML = '';
   const members = currentTrip.members && currentTrip.members.length > 0 ? currentTrip.members : [{ id: 'm_me', name: '我' }];
   members.forEach((m) => {
     const opt = document.createElement('option');
     opt.value = m.id;
-    const pikmin = PIKMIN_TYPES[m.pikminType] || { badge: '🌱' };
+    const pikmin = getCompanionMeta(m.pikminType);
     opt.textContent = `${pikmin.badge} ${m.name} (${m.role || '夥伴'})`;
     el.expensePayer.appendChild(opt);
   });
@@ -883,7 +949,7 @@ function renderSquadAvatars(members) {
   if (!el.pikminSquadMembers) return;
   el.pikminSquadMembers.innerHTML = '';
   members.forEach((m) => {
-    const pikmin = PIKMIN_TYPES[m.pikminType] || { badge: '🌱', color: '#3D6B4F' };
+    const pikmin = getCompanionMeta(m.pikminType);
     const badge = document.createElement('div');
     badge.className = 'avatar-badge';
     badge.style.background = pikmin.color || '#3D6B4F';
@@ -891,6 +957,22 @@ function renderSquadAvatars(members) {
     badge.textContent = pikmin.badge;
     el.pikminSquadMembers.appendChild(badge);
   });
+}
+
+/**
+ * 渲染探險隊成員小卡片清單
+ */
+function renderSquadChips() {
+  if (el.pikminSquadMembers) {
+    el.pikminSquadMembers.innerHTML = '';
+    (currentTrip.members || []).forEach((m) => {
+      const chip = document.createElement('span');
+      chip.className = 'squad-member-chip';
+      const pikmin = getCompanionMeta(m.pikminType);
+      chip.innerHTML = `${pikmin.badge} <strong>${m.name}</strong> <span style="font-size: 0.68rem; color: var(--text-dim);">${pikmin.name}</span>`;
+      el.pikminSquadMembers.appendChild(chip);
+    });
+  }
 }
 
 
@@ -1206,9 +1288,9 @@ function renderTimeline() {
       const timeStr = (tx.datetime || '').slice(11, 16) || '--:--';
       const baseAmt = Math.round(toBaseAmount(tx, currentTrip.baseCurrency));
 
-      // 付款人皮克敏
+      // 付款人夥伴代表
       const payer = (currentTrip.members || []).find((m) => m.id === tx.payerId) || { name: '成員' };
-      const pikmin = PIKMIN_TYPES[payer.pikminType] || { badge: '🌱' };
+      const pikmin = getCompanionMeta(payer.pikminType);
 
       // 🌟 具體支付工具 / 信用卡名稱
       const payItem = paymentItems.find((p) => p.id === tx.paymentItemId) || {
@@ -2088,6 +2170,14 @@ function openAddTripModal() {
   el.tripCitiesInput.value = '那霸, 美國村, 名護, 恩納';
   el.tripBudgetInput.value = '80000';
 
+  const curGlobalTheme = localStorage.getItem('family_travel_theme') || 'pikmin';
+  const radioP = document.getElementById('themeRadioPikmin');
+  const radioA = document.getElementById('themeRadioAcnh');
+  if (radioP && radioA) {
+    radioP.checked = curGlobalTheme === 'pikmin';
+    radioA.checked = curGlobalTheme === 'acnh';
+  }
+
   const defaultMembers = [
     { id: 'm_' + Date.now() + '_1', name: '爸爸', role: '我', pikminType: 'red' },
     { id: 'm_' + Date.now() + '_2', name: '媽媽', role: '太太', pikminType: 'pink' },
@@ -2129,6 +2219,14 @@ function openEditTripModal(targetTrip = null) {
   el.tripCitiesInput.value = (tripToEdit.cities || []).join(', ');
   el.tripBudgetInput.value = tripToEdit.totalBudget || 100000;
 
+  const tripTheme = tripToEdit.theme || 'pikmin';
+  const radioP = document.getElementById('themeRadioPikmin');
+  const radioA = document.getElementById('themeRadioAcnh');
+  if (radioP && radioA) {
+    radioP.checked = tripTheme === 'pikmin';
+    radioA.checked = tripTheme === 'acnh';
+  }
+
   renderTripMembersEditor(tripToEdit.members || []);
   el.tripModal.classList.add('open');
 }
@@ -2143,6 +2241,18 @@ function renderTripManagerList() {
   const trips = Storage.getTrips();
   const activeTrip = Storage.getActiveTrip() || trips[0];
 
+  // 更新當前主題切換按鈕高亮
+  const curTheme = activeTrip?.theme || localStorage.getItem('family_travel_theme') || 'pikmin';
+  if (el.btnThemePikmin && el.btnThemeAcnh) {
+    if (curTheme === 'acnh') {
+      el.btnThemeAcnh.classList.add('active');
+      el.btnThemePikmin.classList.remove('active');
+    } else {
+      el.btnThemePikmin.classList.add('active');
+      el.btnThemeAcnh.classList.remove('active');
+    }
+  }
+
   trips.forEach((trip) => {
     const isCurrent = trip.id === activeTrip.id;
     const card = document.createElement('div');
@@ -2151,6 +2261,7 @@ function renderTripManagerList() {
     const citySummary = (trip.cities || []).slice(0, 3).join(' · ');
     const memberCount = (trip.members || []).length;
     const dateRange = (trip.startDate && trip.endDate) ? `${trip.startDate} ~ ${trip.endDate}` : '尚未設定日期';
+    const themeTag = trip.theme === 'acnh' ? '🍃 動森風格' : '🌱 皮克敏風格';
 
     card.innerHTML = `
       <div class="trip-manager-main">
@@ -2165,7 +2276,8 @@ function renderTripManagerList() {
         <div class="trip-manager-meta">
           <span>📅 ${dateRange}</span>
           ${citySummary ? `<span>📍 ${citySummary}</span>` : ''}
-          <span>👥 ${memberCount} 位探險隊員</span>
+          <span>👥 ${memberCount} 位成員</span>
+          <span>🎨 ${themeTag}</span>
           <span>💰 預算 NT$ ${formatNumber(trip.totalBudget || 0)}</span>
         </div>
       </div>
@@ -2271,9 +2383,14 @@ function addMemberRow(memberData = null) {
     </div>
     <div class="member-card-line2">
       <div style="flex: 1;">
-        <span class="member-field-label">代表皮克敏夥伴</span>
+        <span class="member-field-label">代表角色夥伴</span>
         <select class="member-pikmin form-select">
-          ${Object.values(PIKMIN_TYPES).map((p) => `<option value="${p.id}" ${p.id === mPikmin ? 'selected' : ''}>${p.badge} ${p.name} (${p.roleTitle || ''})</option>`).join('')}
+          <optgroup label="🌱 皮克敏探險夥伴">
+            ${Object.values(PIKMIN_TYPES).map((p) => `<option value="${p.id}" ${p.id === mPikmin ? 'selected' : ''}>${p.badge} ${p.name} (${p.roleTitle || ''})</option>`).join('')}
+          </optgroup>
+          <optgroup label="🍃 動物森友會夥伴">
+            ${Object.values(ACNH_TYPES).map((a) => `<option value="${a.id}" ${a.id === mPikmin ? 'selected' : ''}>${a.badge} ${a.name} (${a.roleTitle || ''})</option>`).join('')}
+          </optgroup>
         </select>
       </div>
       <button type="button" class="btn-del-member" title="移除此成員">
@@ -2484,7 +2601,7 @@ function renderBeneficiarySelector(selectedIds = ['all']) {
     const isSelected = !isAll && selectedIds.includes(mId);
     if (isSelected) chip.classList.add('active');
 
-    const pikmin = PIKMIN_TYPES[m.pikminType] || { badge: '🌱' };
+    const pikmin = getCompanionMeta(m.pikminType);
     chip.textContent = `${pikmin.badge} ${m.name}`;
 
     chip.onclick = () => {
@@ -2871,6 +2988,30 @@ function bindEvents() {
   if (el.closeTripModalBtn) el.closeTripModalBtn.onclick = () => el.tripModal.classList.remove('open');
   if (el.addMemberRowBtn) el.addMemberRowBtn.onclick = () => addMemberRow();
 
+  // 🎨 主題風格切換事件綁定 (皮克敏 vs 動物森友會)
+  if (el.btnToggleTripTheme) {
+    el.btnToggleTripTheme.onclick = () => {
+      const curTheme = document.body.dataset.theme || currentTrip?.theme || 'pikmin';
+      const nextTheme = curTheme === 'acnh' ? 'pikmin' : 'acnh';
+      applyTheme(nextTheme, true);
+      showToast(nextTheme === 'acnh' ? '🍃 已切換為「動物森友會」風格！' : '🌱 已切換為「皮克敏探險」風格！');
+    };
+  }
+
+  if (el.btnThemePikmin) {
+    el.btnThemePikmin.onclick = () => {
+      applyTheme('pikmin', true);
+      showToast('🌱 已套用皮克敏探險風格', '🌱');
+    };
+  }
+
+  if (el.btnThemeAcnh) {
+    el.btnThemeAcnh.onclick = () => {
+      applyTheme('acnh', true);
+      showToast('🍃 已套用動物森友會風格', '🍃');
+    };
+  }
+
   // 🌟 切換目標貨幣時，智慧推薦對應城市
   if (el.tripTargetCurrencyInput) {
     el.tripTargetCurrencyInput.onchange = () => {
@@ -2977,7 +3118,7 @@ function openAddPaymentItemModal() {
       const name = row.querySelector('.member-name').value.trim() || '成員';
       const role = row.querySelector('.member-role').value.trim() || '家人';
       const pikminType = row.querySelector('.member-pikmin').value || 'red';
-      const pikminObj = PIKMIN_TYPES[pikminType] || {};
+      const pikminObj = PIKMIN_TYPES[pikminType] || ACNH_TYPES[pikminType] || {};
       members.push({
         id,
         name,
@@ -2989,6 +3130,7 @@ function openAddPaymentItemModal() {
     });
 
     const existingTrip = isEdit ? Storage.getTrips().find((t) => t.id === el.editTripId.value) : null;
+    const selectedTheme = document.querySelector('input[name="tripThemeInput"]:checked')?.value || 'pikmin';
     const tripData = createTrip({
       id: isEdit ? el.editTripId.value : undefined,
       title: el.tripTitleInput.value.trim(),
@@ -2998,6 +3140,7 @@ function openAddPaymentItemModal() {
       endDate: el.tripEndDateInput.value,
       cities,
       totalBudget: parseFloat(el.tripBudgetInput.value) || 100000,
+      theme: selectedTheme,
       members,
       paymentItems: existingTrip?.paymentItems || null
     });
