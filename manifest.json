@@ -1,0 +1,17 @@
+{
+  "name": "Pikmin Travel 家庭探險記帳本",
+  "short_name": "PikminTravel",
+  "description": "專為家庭與夫妻出國旅行打造的皮克敏森林探險財務紀錄、現金錢包與結算工具",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F4F7EE",
+  "theme_color": "#65A30D",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./assets/pikmin_logo.jpg",
+      "sizes": "192x192 512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

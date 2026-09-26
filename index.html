@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Pikmin Travel · 家庭探險財務與回憶帳本</title>
+  <meta name="description" content="專為家庭出國旅行打造的皮克敏森林探險財務紀錄、現金換匯錢包、多城市時間軸與結算工具">
+  <!-- 現代高級字體：Outfit (數字與英文字) + Noto Sans TC (中文) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700;800;900&family=Outfit:wght@500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css?v=20260926_settings_v3">
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#3D6B4F">
+</head>
+<body>
+  <!-- 頂部品牌與狀態列 (皮克敏出遊風格) -->
+  <header class="top-header">
+    <div class="brand-section">
+      <span class="brand-icon">🌱</span>
+      <div class="brand-text">
+        <h1>家庭旅遊記帳</h1>
+        <span class="trip-badge" id="currentTripBadge" title="點擊切換行程帳本">✈️ 沖繩放鬆自駕 2027</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn pwa-install-btn" id="btnInstallPwa" title="安裝到手機桌面">📲</button>
+      <button class="icon-btn" id="btnInviteMembers" title="邀請旅伴 (複製連結 / QR Code)">🔗</button>
+      <button class="icon-btn" id="btnSwitchTrip" title="切換其他行程帳本">🗺️</button>
+    </div>
+  </header>
+
+  <main class="app-container">
+    <!-- 一般標準模式：旅程卡片與指標儀表板 -->
+    <!-- 頁籤一：旅行時間軸 (Timeline) -->
+    <section id="tabTimeline" class="tab-content">
+      <!-- 🌸 旅程總覽：極致高級森系微卡片 (僅在當前行程中顯示) -->
+      <section id="travelModeHero" class="trip-overview-card" style="margin-bottom: 12px;">
+        <!-- 第一列：探險狀態與日期 (整列純展現狀態與日期區間，絕對不折行) -->
+        <div class="overview-top-row" style="margin-bottom: 8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-pill active" id="heroTripStatus" style="white-space: nowrap; flex-shrink: 0;">探險進行中</span>
+            <span class="hero-trip-date" id="heroTripDates" style="margin: 0; white-space: nowrap;">📅 2027/04/01 ~ 2027/04/07</span>
+            <span id="travelHeroDest" style="display:none;"></span>
+          </div>
+        </div>
+
+        <!-- 第二列：今日累積花費 與 編輯/結算 操作按鈕 (向下移至此列並排) -->
+        <div class="hero-main-stat" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed #DEE7DC;">
+          <div>
+            <div class="stat-label">🌱 今日累積花費 (當地貨幣)</div>
+            <div class="stat-amount-wrap">
+              <span id="travelHeroTodayAmount" class="stat-hero-big">¥0</span>
+              <span id="travelHeroTodayBaseConverted" class="stat-converted-pill">≈ NT$0</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 6px; padding-bottom: 4px; flex-shrink: 0;">
+            <button id="editCurrentTripBtn" class="hero-quick-action secondary" title="編輯帳本設定">編輯 ✏️</button>
+            <button id="finishTripBtn" class="hero-quick-action" title="結算報告">結算 🏁</button>
+          </div>
+        </div>
+
+        <!-- 核心 3 指標 -->
+        <div class="overview-stats-grid">
+          <div class="stat-grid-item">
+            <div class="stat-grid-label">本次總支出</div>
+            <strong id="travelHeroTotalBase" class="stat-grid-val highlight-green">NT$0</strong>
+            <span class="stat-grid-sub" id="statPrepaidSub">含行前與當地</span>
+          </div>
+          <div class="stat-grid-item">
+            <div class="stat-grid-label">剩餘預算</div>
+            <strong id="travelHeroBudgetRemain" class="stat-grid-val">NT$0</strong>
+            <span class="stat-grid-sub" id="statBudgetPercent">預算尚充裕</span>
+          </div>
+          <div class="stat-grid-item highlight-cash">
+            <div class="stat-grid-label">外幣現金餘額</div>
+            <strong id="travelHeroCashRemain" class="stat-grid-val highlight-gold">¥0</strong>
+            <span class="stat-grid-sub">錢包現金</span>
+          </div>
+        </div>
+
+        <!-- 皮克敏探險小隊成員 (移除多餘的帳本管理項，滿版呈現可愛成員) -->
+        <div class="hero-members-row">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.76rem; font-weight: 800; color: var(--forest-dark);">🌱 探險小隊：</span>
+            <div class="member-avatar-stack" id="pikminSquadMembers"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 皮克敏花朵成長預算進度條 (整合至時間軸頂部) -->
+      <div class="budget-bar-wrapper" style="margin-bottom: 10px;">
+        <div class="budget-bar-labels">
+          <span class="budget-growth-label">
+            <span id="pikminGrowthStageIcon">🌱</span> 預算消耗 (<span id="budgetPercentLabel">0%</span>)
+          </span>
+          <span>剩餘 <strong id="budgetRemainingLabel">NT$0</strong> / 總額 <span id="budgetTotalLabel">NT$0</span></span>
+        </div>
+        <div class="progress-track">
+          <div id="budgetProgressFill" class="progress-fill" style="width: 0%;">
+            <span class="pikmin-track-flower" id="pikminTrackFlower">🌱</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 篩選列：城市與標籤 -->
+      <div class="filter-bar" id="timelineFilterBar">
+        <button class="filter-chip active" data-filter-city="all">全部城市</button>
+      </div>
+
+      <!-- 時間軸清單容器 -->
+      <div id="timelineContainer" class="timeline-section" style="margin-top: 10px;"></div>
+    </section>
+
+    <!-- 頁籤二：支出統計與圖表分析 (Analytics) -->
+    <section id="tabAnalytics" class="tab-content" style="display: none;">
+      <!-- 統計分析：圓餅圖 ＋ 分類長條圖 ＋ 成員花費明細 -->
+      <div class="trip-header-card" id="chart-section" style="padding: 18px 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+          <div style="font-size: 1rem; font-weight: 800; color: var(--forest-dark); display: flex; align-items: center; gap: 6px;">
+            <span>📊</span> 支出分類與統計分析
+          </div>
+          <span id="chart-total-badge" style="font-family: var(--font-number); font-weight: 800; font-size: 0.85rem; color: var(--forest-green); background: var(--forest-tint); padding: 3px 10px; border-radius: 999px;">
+            NT$ 0
+          </span>
+        </div>
+
+        <!-- 切換圖表按鈕 (Segmented Pill Controls - 4字工整不折行) -->
+        <div class="chart-tab-bar" style="margin-bottom: 14px;">
+          <button type="button" class="chart-tab-pill active" id="btn-tab-pie">圓餅佔比</button>
+          <button type="button" class="chart-tab-pill" id="btn-tab-bar">分類排行</button>
+          <button type="button" class="chart-tab-pill" id="btn-tab-member">成員花費</button>
+        </div>
+
+        <!-- 1. 圓餅圖容器 -->
+        <div class="chart-container" id="chart-container-pie">
+          <div class="pie-chart-wrap">
+            <svg class="pie-chart-svg" viewBox="0 0 42 42" id="pie-chart-svg">
+              <!-- 動態生成 SVG 圓餅圖切片 -->
+            </svg>
+            <div class="pie-chart-center">
+              <div class="pie-center-label">全團總花費</div>
+              <div class="pie-center-val" id="pie-center-amount">NT$ 0</div>
+            </div>
+          </div>
+
+          <!-- 類別圖例清單 -->
+          <div class="chart-legend-grid" id="chart-legend-grid">
+            <!-- 動態生成圖例 -->
+          </div>
+        </div>
+
+        <!-- 2. 長條圖容器 (分類排行) -->
+        <div id="chart-container-bar" style="display:none; flex-direction:column; gap:10px;">
+          <!-- 動態渲染長條圖 -->
+        </div>
+
+        <!-- 3. 成員花費與支付工具明細容器 -->
+        <div id="chart-container-member" style="display:none; flex-direction:column; gap:10px;">
+          <!-- 動態渲染成員花費與核對明細 -->
+        </div>
+      </div>
+
+      <!-- 💳 支付工具與卡片核對分析卡 -->
+      <div class="trip-header-card" style="margin-top: 14px; padding: 16px 18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+          <div style="font-size: 0.95rem; font-weight: 800; color: var(--forest-dark); display: flex; align-items: center; gap: 6px;">
+            <span>💳</span> 支付方式與卡片分佈
+          </div>
+          <span style="font-size: 0.72rem; color: var(--text-muted); background: #F1F6F0; padding: 2px 8px; border-radius: 999px;">
+            帳單核對工具
+          </span>
+        </div>
+        <div id="paymentMethodsContainer" style="display: flex; flex-direction: column; gap: 8px;"></div>
+      </div>
+
+      <!-- 📍 旅行足跡與城市花費分佈卡 -->
+      <div class="trip-header-card" style="margin-top: 14px; padding: 16px 18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+          <div style="font-size: 0.95rem; font-weight: 800; color: var(--forest-dark); display: flex; align-items: center; gap: 6px;">
+            <span>📍</span> 旅行足跡與城市花費
+          </div>
+          <span style="font-size: 0.72rem; color: var(--text-muted); background: #F1F6F0; padding: 2px 8px; border-radius: 999px;">
+            城市開銷分析
+          </span>
+        </div>
+        <div id="cityExpensesContainer" style="display: flex; flex-direction: column; gap: 8px;"></div>
+      </div>
+
+      <div style="margin-top: 16px; text-align: center;">
+        <button id="reportTabFinishBtn" class="btn-primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">
+          🏁 查看本趟旅行結算總報告
+        </button>
+      </div>
+    </section>
+
+    <!-- 頁籤三：換匯與錢包 (Wallets & Exchange) -->
+    <section id="tabWallets" class="tab-content" style="display: none;">
+      <!-- 外幣現金水位總覽卡片 -->
+      <div class="trip-header-card" style="margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+          <div>
+            <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--pikmin-green-deep);">💴 現金錢包與換匯管理</h3>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+              掌握實體現金水位，無論是出國前台幣換匯或前期留存舊鈔，都能乾淨記帳。
+            </p>
+          </div>
+          <div style="text-align: right; flex-shrink: 0;">
+            <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700;">錢包現金餘額</span>
+            <div id="walletsHeroCashRemain" style="font-family: var(--font-number); font-size: 1.25rem; font-weight: 900; color: #D97706;">
+              ¥0
+            </div>
+          </div>
+        </div>
+
+        <!-- 雙按鈕：換匯 vs 前期剩餘外幣 (舊鈔) -->
+        <div class="wallet-actions-row">
+          <button type="button" id="openExchangeModalBtn" class="btn-primary" style="padding: 10px 12px; font-size: 0.85rem;">
+            💱 記錄台幣換匯
+          </button>
+          <button type="button" id="openSurplusModalBtn" class="btn-wallet-surplus">
+            🎒 登記前期剩餘外幣 (舊鈔)
+          </button>
+        </div>
+      </div>
+
+      <h4 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">外幣現金與換匯歷程</h4>
+      <div id="exchangeListContainer" style="display: flex; flex-direction: column; gap: 8px;"></div>
+    </section>
+
+    <!-- 頁籤四：項目與卡片設定 (Settings & Items Management) -->
+    <section id="tabSettings" class="tab-content" style="display: none;">
+      <!-- 自訂支付工具與信用卡 -->
+      <div class="trip-header-card" style="margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div>
+            <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--pikmin-green-deep);">💳 支付工具與卡片管理</h3>
+            <p style="font-size: 0.75rem; color: var(--text-muted);">自訂您的信用卡、交通卡、行動支付與回饋備註</p>
+          </div>
+          <button type="button" id="settingsAddPaymentBtn" class="btn-action-primary">
+            <span>＋</span> 新增卡片
+          </button>
+        </div>
+        <!-- 快速分類篩選膠囊 -->
+        <div id="paymentFilterChips" class="payment-filter-chips"></div>
+        <!-- 分類分組卡片清單 -->
+        <div id="settingsPaymentList" class="settings-payment-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 🌟 手機版極致 5 功能浮動導航膠囊 (Floating Dock - 100% 移植 money 專案極致美學) -->
+  <nav class="bottom-dock bottom-nav-bar" id="bottomDock">
+    <!-- 1. 當前行程 / 時間軸 -->
+    <button class="dock-item bottom-nav-item active" data-tab="timeline">
+      <span class="dock-icon">🌱</span>
+      <span class="dock-label">當前行程</span>
+    </button>
+
+    <!-- 2. 統計報表 / 圖表 -->
+    <button class="dock-item bottom-nav-item" data-tab="analytics">
+      <span class="dock-icon">📊</span>
+      <span class="dock-label">圖表</span>
+    </button>
+
+    <!-- 3. 中央置中櫻花記一筆快捷鍵 -->
+    <button type="button" id="fabAddExpenseBtn" class="dock-item dock-btn-add" title="記一筆">
+      <span class="dock-icon" style="font-size: 1.55rem; color: #EC4899; display: block; filter: drop-shadow(0 2px 4px rgba(236,72,153,0.3));">🌸</span>
+      <span class="dock-label" style="font-weight: 800; color: var(--forest-green);">記一筆</span>
+    </button>
+
+    <!-- 4. 換匯錢包 -->
+    <button class="dock-item bottom-nav-item" data-tab="wallets">
+      <span class="dock-icon">🪙</span>
+      <span class="dock-label">換匯錢包</span>
+    </button>
+
+    <!-- 5. 項目與卡片設定 -->
+    <button class="dock-item bottom-nav-item" data-tab="settings">
+      <span class="dock-icon">🏷️</span>
+      <span class="dock-label">項目卡片</span>
+    </button>
+  </nav>
+
+  <!-- Modal 1: 支出記帳視窗 (全面移植 money 專案極致美學) -->
+  <div id="expenseModal" class="modal-overlay">
+    <div class="modal-sheet" style="max-height: 90vh;">
+      <div class="modal-header">
+        <h3 id="expenseModalTitle" class="modal-title">🌱 記一筆旅行支出</h3>
+        <button id="closeExpenseModalBtn" class="modal-close">&times;</button>
+      </div>
+
+      <form id="expenseForm" style="display: flex; flex-direction: column; gap: 14px; padding: 4px 0 16px;">
+        <input type="hidden" id="editExpenseId">
+
+        <!-- 1. 預付開關 (對稱整齊雙膠囊，絕對不折行) -->
+        <div class="form-group">
+          <div class="segmented-control">
+            <button type="button" class="segment-btn active" id="btnModeOnTrip">🍜 旅途消費</button>
+            <button type="button" class="segment-btn" id="btnModePrepaid">✈️ 行前預付</button>
+          </div>
+          <div id="prepaidHint" style="display: none; font-size: 0.74rem; color: #4A6356; text-align: center; margin-top: 4px; background: #F1F6F0; padding: 5px 12px; border-radius: 8px; border: 1px dashed #C8DEC9;">
+            ✈️ 包含機票、飯店、門票等出發前預付款項
+          </div>
+        </div>
+
+        <!-- 2. 金額與幣別整合大輸入框 (附即時台幣折算標籤) -->
+        <div class="form-group">
+          <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+            <span>支出金額與幣別 *</span>
+            <span id="liveConvertedAmount" class="live-converted-pill">≈ NT$ 0</span>
+          </label>
+          <div class="amount-input-box">
+            <select class="currency-select" id="expenseCurrency"></select>
+            <input type="number" id="expenseAmount" placeholder="0" step="any" required inputmode="decimal">
+          </div>
+        </div>
+
+        <!-- 3. 精巧匯率提示條 (取代突兀大綠框) -->
+        <div class="rate-hint-bar" id="liveConversionBox">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 0.78rem;">💱 匯率：</span>
+            <span id="liveRateLabel" style="font-size: 0.78rem; font-weight: 700; color: var(--forest-dark);">1 JPY ≈ 0.2100 TWD</span>
+          </div>
+          <button type="button" id="btnToggleCustomRate" class="btn-text-sm" style="font-size: 0.72rem; color: var(--forest-green); background: none; border: none; font-weight: 700; cursor: pointer;">調整匯率 ▾</button>
+        </div>
+        <div id="customRateRow" style="display: none; align-items: center; justify-content: space-between; padding: 6px 12px; background: #FFFFFF; border: 1px dashed #D8EAD9; border-radius: 10px; margin-top: -6px;">
+          <span style="font-size: 0.75rem; color: var(--text-muted);">自訂匯率：</span>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <input type="number" id="expenseCustomRate" step="0.0001" placeholder="0.2100" style="width: 85px; padding: 4px 6px; font-size: 0.82rem; border: 1.5px solid #C8DEC9; border-radius: 6px; text-align: center;">
+            <button type="button" id="btnResetRate" class="btn-text-sm" style="font-size: 0.72rem; color: var(--text-muted); background: none; border: none; cursor: pointer;">重設</button>
+          </div>
+        </div>
+
+        <!-- 4. 支出分類 與 所在城市 (2 欄等寬) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label" for="expenseCategory">支出分類</label>
+            <select id="expenseCategory" class="form-select"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="expenseCity">所在城市</label>
+            <select id="expenseCity" class="form-select"></select>
+          </div>
+        </div>
+
+        <!-- 5. 支付方式 / 卡片 與 付款人 (2 欄等寬) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label class="form-label" for="expensePaymentMethod">支付方式 / 卡片</label>
+              <button type="button" id="openAddPaymentItemBtn" class="btn-text-sm" style="font-size: 0.72rem; color: var(--forest-green); background: none; border: none; font-weight: 700; cursor: pointer; padding: 0;">＋卡片</button>
+            </div>
+            <select id="expensePaymentMethod" class="form-select"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="expensePayer">付款人</label>
+            <select id="expensePayer" class="form-select"></select>
+          </div>
+        </div>
+
+        <!-- 6. 品項名稱 / 備註 -->
+        <div class="form-group">
+          <label class="form-label" for="expenseNotes">品項名稱 / 備註</label>
+          <input type="text" id="expenseNotes" class="form-input" placeholder="例如：一蘭拉麵、新宿地鐵、伴手禮">
+        </div>
+
+        <!-- 7. 日期與時間 -->
+        <div class="form-group">
+          <label class="form-label" for="expenseDatetime">📅 日期與時間 *</label>
+          <input type="datetime-local" id="expenseDatetime" class="form-input" required>
+        </div>
+
+        <!-- 8. 常用標籤 -->
+        <div class="form-group">
+          <label class="form-label">🏷️ 常用標籤 (點選快速附加)</label>
+          <div id="tagChipsSelector" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+        </div>
+
+        <!-- 9. 照片上傳區 -->
+        <div class="form-group">
+          <label class="form-label">📷 照片 (收據發票或旅遊紀念照)</label>
+          <div id="photoUploaderBox" class="photo-uploader">
+            <input type="file" id="expensePhotoInput" accept="image/*" style="display: none;">
+            <div id="photoPlaceholder">
+              <span style="font-size: 1.4rem;">📸</span>
+              <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">點擊拍照或上傳收據 / 旅遊照片</p>
+            </div>
+            <div id="photoPreviewContainer" class="photo-preview-box" style="display: none;">
+              <img id="photoPreviewImg" class="photo-preview-img" alt="預覽照片">
+              <div style="text-align: left; flex: 1;">
+                <div style="font-size: 0.82rem; font-weight: 700; color: var(--forest-dark);">已附加照片</div>
+                <button type="button" id="removePhotoBtn" style="color: var(--danger); background: none; border: none; font-size: 0.75rem; cursor: pointer; padding: 2px 0;">✕ 移除照片</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 10. 信用卡實際請款回填 (折疊選填區) -->
+        <details id="actualCreditCardSection" style="background: #F8FAF7; border: 1px dashed #D5E1D3; border-radius: var(--radius-sm); padding: 8px 12px;">
+          <summary style="font-size: 0.8rem; font-weight: 700; color: var(--forest-green); cursor: pointer; outline: none; user-select: none;">
+            💳 信用卡實際請款台幣 (收到帳單後回填，選填) ▾
+          </summary>
+          <div style="margin-top: 8px; display: flex; gap: 10px; align-items: center;">
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label" style="font-size: 0.75rem;">實際扣款 (NT$)</label>
+              <input type="number" id="actualBilledAmount" class="form-input" placeholder="例如: 4380" step="any">
+            </div>
+            <p style="font-size: 0.72rem; color: var(--text-muted); flex: 1; line-height: 1.3;">
+              帳單出來後填入，系統會自動取代預估匯率，精算回饋！
+            </p>
+          </div>
+        </details>
+
+        <!-- 11. 儲存與刪除按鈕 -->
+        <div style="display: flex; gap: 10px; margin-top: 6px;">
+          <button type="submit" class="submit-btn" id="saveExpenseBtn" style="flex: 2; height: 46px; font-size: 0.95rem; font-weight: 800; border-radius: var(--radius-pill); background: linear-gradient(135deg, #3D6B4F 0%, #20352A 100%); color: #FFFFFF; border: none; cursor: pointer; box-shadow: 0 4px 14px rgba(32, 53, 42, 0.25);">
+            🌱 儲存支出紀錄
+          </button>
+          <button type="button" id="deleteExpenseBtn" class="btn-danger-outline" style="display: none; flex: 1; height: 46px; font-size: 0.85rem; font-weight: 700; border-radius: var(--radius-pill); border: 1.5px solid var(--danger); color: var(--danger); background: #FFF5F5; cursor: pointer;">
+            🗑️ 刪除紀錄
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 1.5: 🌟 新增 / 編輯旅程帳本視窗 (Trip Modal) -->
+  <div id="tripModal" class="modal-overlay">
+    <div class="modal-sheet" style="max-height: 90vh;">
+      <div class="modal-header">
+        <h3 id="tripModalTitle" class="modal-title">🌱 建立新的冒險帳本</h3>
+        <button id="closeTripModalBtn" class="modal-close">&times;</button>
+      </div>
+
+      <form id="tripForm" style="display: flex; flex-direction: column; gap: 14px;">
+        <input type="hidden" id="editTripId">
+
+        <!-- 帳本名稱與國旗 -->
+        <div class="form-group">
+          <label class="form-label" for="tripTitleInput">冒險旅程名稱 *</label>
+          <input type="text" id="tripTitleInput" class="form-input" placeholder="例如：🇯🇵 沖繩放鬆自駕 2027" required style="font-size: 1.05rem; font-weight: 700;">
+        </div>
+
+        <!-- 目標外幣與主要貨幣 -->
+        <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" for="tripTargetCurrencyInput">目的地主要貨幣</label>
+            <select id="tripTargetCurrencyInput" class="form-select"></select>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" for="tripBaseCurrencyInput">本國結算幣別</label>
+            <select id="tripBaseCurrencyInput" class="form-select">
+              <option value="TWD">🇹🇼 新台幣 (NT$)</option>
+              <option value="HKD">🇭🇰 港幣 (HK$)</option>
+              <option value="USD">🇺🇸 美元 ($)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 日期範圍 -->
+        <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" for="tripStartDateInput">出發日期</label>
+            <input type="date" id="tripStartDateInput" class="form-input" required>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" for="tripEndDateInput">回程日期</label>
+            <input type="date" id="tripEndDateInput" class="form-input" required>
+          </div>
+        </div>
+
+        <!-- 造訪城市清單 -->
+        <div class="form-group">
+          <label class="form-label" for="tripCitiesInput">預計造訪城市 (逗號分隔)</label>
+          <input type="text" id="tripCitiesInput" class="form-input" placeholder="例如：那霸, 美國村, 名護, 恩納">
+          <span style="font-size: 0.72rem; color: var(--text-dim); margin-top: 2px;">系統會自動生成各城市的記帳分流標籤</span>
+        </div>
+
+        <!-- 總預算金額 -->
+        <div class="form-group">
+          <label class="form-label" for="tripBudgetInput">總旅行預算 (NT$) *</label>
+          <input type="number" id="tripBudgetInput" class="form-input" placeholder="例如：80000" required step="1000" inputmode="numeric" style="font-size: 1.15rem; font-weight: 700;">
+        </div>
+
+        <!-- 皮克敏探險小隊配置 (Family Members) -->
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" style="margin-bottom: 0;">🌱 探險小隊成員與皮克敏夥伴</label>
+            <button type="button" id="addMemberRowBtn" class="btn-text-sm">＋ 增加成員</button>
+          </div>
+          <div id="tripMembersEditorContainer" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 8px;">
+          <button type="submit" class="btn-primary" style="flex: 2;">儲存並開啟帳本</button>
+          <button type="button" id="deleteTripBtn" class="btn-danger-outline" style="display: none; flex: 1;">🗑️ 刪除此帳本</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 1.8: 🌟 新增自訂支付方式 / 卡片視窗 -->
+  <div id="paymentItemModal" class="modal-overlay">
+    <div class="modal-sheet" style="max-height: 80vh;">
+      <div class="modal-header">
+        <h3 class="modal-title">💳 新增支付卡片 / 工具</h3>
+        <button id="closePaymentItemModalBtn" class="modal-close">&times;</button>
+      </div>
+
+      <form id="paymentItemForm" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-group">
+          <label class="form-label" for="newPaymentName">卡片或支付名稱 *</label>
+          <input type="text" id="newPaymentName" class="form-input" placeholder="例如：台新 FlyGo 卡、玉山雙幣卡、PASMO" required style="font-size: 1rem; font-weight: 700;">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="newPaymentCategory">支付類型 *</label>
+          <select id="newPaymentCategory" class="form-select">
+            <option value="credit_card">💳 信用卡 (自訂不同銀行與回饋卡片)</option>
+            <option value="transit_card">🐧 交通卡 (Suica、ICOCA、PASMO 等)</option>
+            <option value="mobile_pay">📲 行動支付 (Apple Pay、PayPay、LINE Pay 等)</option>
+            <option value="cash">💵 現金錢包 (外幣現金、台幣零用金)</option>
+            <option value="bank_transfer">🏦 銀行轉帳 / 行前付清</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="newPaymentNote">卡片特色或備註 (選填)</label>
+          <input type="text" id="newPaymentNote" class="form-input" placeholder="例如：海外 3% 回饋、末四碼 1234">
+        </div>
+
+        <button type="submit" class="btn-primary" style="margin-top: 6px;">確認儲存卡片</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: 現金換匯與前期自備外幣記錄視窗 -->
+  <div id="exchangeModal" class="modal-overlay">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h3 class="modal-title" id="exchangeModalTitle">💱 記錄外幣現金</h3>
+        <button id="closeExchangeModalBtn" class="modal-close">&times;</button>
+      </div>
+
+      <!-- 模式切換膠囊：台幣換匯 vs 前期剩餘外幣 (舊鈔) -->
+      <div class="chart-tab-bar" style="margin-bottom: 12px;">
+        <button type="button" class="chart-tab-pill active" id="btnExModeExchange">💱 本次台幣換匯</button>
+        <button type="button" class="chart-tab-pill" id="btnExModeSurplus">🎒 前期剩餘外幣 (舊鈔)</button>
+      </div>
+
+      <form id="exchangeForm" style="display: flex; flex-direction: column; gap: 12px;">
+        <input type="hidden" id="exIsSurplus" value="false">
+
+        <div class="metric-card" id="exInfoBanner" style="margin-bottom: 4px;">
+          <span id="exInfoText" style="font-size: 0.8rem; color: var(--text-muted);">
+            換匯是把台幣資產換成外幣現金，不會扣減預算，只會增加你的外幣現金錢包餘額。
+          </span>
+        </div>
+
+        <!-- 台幣付出群組 (自備外幣模式時自動顯示 0 並提示) -->
+        <div id="exFromGroup" style="display: flex; gap: 10px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">付出幣別 (本國幣)</label>
+            <input type="text" class="form-input" value="新台幣 (TWD)" readonly disabled>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" id="labelExFromAmount">付出金額 (NT$) *</label>
+            <input type="number" id="exFromAmount" class="form-input" placeholder="例如: 50000" required inputmode="decimal">
+          </div>
+        </div>
+
+        <!-- 外幣換得群組 -->
+        <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" id="labelExToCurrency">外幣幣別 *</label>
+            <select id="exToCurrency" class="form-select"></select>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label" id="labelExToAmount">外幣金額 *</label>
+            <input type="number" id="exToAmount" class="form-input" placeholder="例如: 235000" required inputmode="decimal">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">入帳日期時間</label>
+          <input type="datetime-local" id="exDatetime" class="form-input" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">備註說明</label>
+          <input type="text" id="exNotes" class="form-input" placeholder="例如: 台灣銀行臨櫃換匯、上次日本旅行剩餘舊鈔">
+        </div>
+
+        <button type="submit" id="btnSubmitExchange" class="btn-primary" style="margin-top: 6px;">確認儲存</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3: 旅程結算報告視窗 -->
+  <div id="reportModal" class="modal-overlay">
+    <div class="modal-sheet" style="max-height: 95vh;">
+      <div class="modal-header">
+        <h3 class="modal-title">🏁 旅程結算完整報告</h3>
+        <button id="closeReportModalBtn" class="modal-close">&times;</button>
+      </div>
+
+      <div id="reportReportContent" style="display: flex; flex-direction: column; gap: 14px;"></div>
+    </div>
+  </div>
+
+  <!-- Modal 4: 照片大圖檢視 (Lightbox) -->
+  <div id="photoLightboxModal" class="modal-overlay" style="align-items: center; justify-content: center; padding: 20px;">
+    <div style="position: relative; max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column; align-items: center;">
+      <button id="closeLightboxBtn" style="position: absolute; top: -36px; right: 0; background: none; border: none; color: #FFF; font-size: 2rem; cursor: pointer;">&times;</button>
+      <img id="lightboxImg" style="max-width: 100%; max-height: 80vh; border-radius: 12px; object-fit: contain; box-shadow: 0 10px 40px rgba(0,0,0,0.8);" alt="查看相片">
+      <div id="lightboxCaption" style="margin-top: 10px; color: #E2E8F0; font-size: 0.9rem; text-align: center;"></div>
+    </div>
+  </div>
+
+  <!-- Modal 5: 🗺️ 冒險帳本與行程管理中心 (一站式切換、管理與刪除帳本) -->
+  <div id="tripManagerModal" class="modal-overlay">
+    <div class="modal-sheet" style="max-height: 85vh;">
+      <div class="modal-header">
+        <h3 class="modal-title"><span>🗺️</span> 冒險帳本管理中心</h3>
+        <button id="closeTripManagerModalBtn" class="modal-close">&times;</button>
+      </div>
+
+      <div style="padding: 6px 0 12px;">
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;">
+          在此切換不同旅程帳本，或刪除已結束的舊帳本資料：
+        </p>
+
+        <!-- 帳本列表容器 -->
+        <div id="tripManagerList" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;"></div>
+
+        <!-- 建立新帳本按鈕 -->
+        <button id="tripManagerCreateBtn" class="btn-primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">
+          🌱 ＋ 建立全新冒險帳本
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 6: 🔗 旅伴名單與邀請管理視窗 -->
+  <div id="inviteModal" class="modal-overlay">
+    <div class="modal-sheet" style="max-height: 85vh;">
+      <div class="modal-header">
+        <h3 class="modal-title"><span>🔗</span> 旅伴名單與邀請管理</h3>
+        <button id="closeInviteModalBtn" class="modal-close">&times;</button>
+      </div>
+
+      <div style="padding: 6px 0 12px; text-align: center;">
+        <p style="font-size: 0.92rem; color: var(--forest-dark); font-weight: 700; margin-bottom: 14px;" id="inviteTripPrompt">
+          邀請朋友一起加入探險記帳！
+        </p>
+
+        <!-- 專屬邀請連結 -->
+        <div class="form-group" style="text-align: left; margin-bottom: 14px;">
+          <label class="form-label">專屬邀請連結</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="inviteLinkInput" class="form-input" readonly style="background: #F8FAF7; font-size: 0.8rem; font-family: monospace;">
+            <button type="button" class="btn-primary" id="btnCopyInviteLink" style="white-space: nowrap; padding: 0 16px; font-size: 0.85rem;">複製連結</button>
+          </div>
+        </div>
+
+        <!-- 展開 QR Code -->
+        <details open style="text-align: center; margin-bottom: 14px; background: #F8FAF7; border: 1.5px solid #E3ECE0; border-radius: var(--radius-sm); padding: 10px;">
+          <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--forest-green); outline: none; user-select: none;">
+            📱 點擊展開/收合 QR Code (相機秒掃入團)
+          </summary>
+          <div id="inviteQrContainer" style="margin-top: 10px; display: flex; flex-direction: column; align-items: center;">
+            <div id="inviteQrSvgWrapper"></div>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">拿出手機相機掃描即可同步開啟</div>
+          </div>
+        </details>
+
+        <!-- 👥 當前帳本成員名單 -->
+        <div style="text-align: left; border-top: 1.5px dashed #E3ECE0; padding-top: 12px;">
+          <div style="font-size: 0.85rem; font-weight: 800; color: var(--forest-dark); margin-bottom: 8px;">
+            👥 當前探險隊員名單
+          </div>
+          <div id="inviteMemberList" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+        </div>
+
+        <button type="button" id="closeInviteDoneBtn" class="btn-primary" style="width: 100%; margin-top: 16px; padding: 10px; background: #F1F6F0; color: var(--forest-dark); border: 1px solid #DCE7DA;">
+          完成關閉
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 浮動提示 Toast -->
+  <div id="toast" class="toast-popup">
+    <span id="toastIcon" class="toast-icon">✨</span>
+    <span id="toastMsg" class="toast-msg">提示訊息</span>
+  </div>
+
+  <script type="module" src="./js/app.js?v=20260926_settings_v3"></script>
+</body>
+</html>
