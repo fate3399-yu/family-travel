@@ -633,6 +633,8 @@ function renderPaymentSelectOptions(selectedItemId = null) {
 
     el.expensePaymentMethod.appendChild(optgroup);
   });
+}
+
 let currentSelectedTags = new Set();
 
 /**
