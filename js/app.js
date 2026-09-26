@@ -82,10 +82,14 @@ const el = {
   btnTabPie: document.getElementById('btn-tab-pie'),
   btnTabBar: document.getElementById('btn-tab-bar'),
   btnTabMember: document.getElementById('btn-tab-member'),
+  btnTabPayer: document.getElementById('btn-tab-payer') || document.getElementById('btn-tab-member'),
+  btnTabBeneficiary: document.getElementById('btn-tab-beneficiary'),
   chartTotalBadge: document.getElementById('chart-total-badge'),
   chartContainerPie: document.getElementById('chart-container-pie'),
   chartContainerBar: document.getElementById('chart-container-bar'),
   chartContainerMember: document.getElementById('chart-container-member'),
+  chartContainerPayer: document.getElementById('chart-container-payer') || document.getElementById('chart-container-member'),
+  chartContainerBeneficiary: document.getElementById('chart-container-beneficiary'),
   pieChartSvg: document.getElementById('pie-chart-svg'),
   pieCenterAmount: document.getElementById('pie-center-amount'),
   chartLegendGrid: document.getElementById('chart-legend-grid'),
@@ -135,6 +139,8 @@ const el = {
   expenseDatetime: document.getElementById('expenseDatetime'),
   expenseNotes: document.getElementById('expenseNotes'),
   tagChipsSelector: document.getElementById('tagChipsSelector'),
+  tagSearchInput: document.getElementById('tagSearchInput'),
+  btnAddCustomTagBtn: document.getElementById('btnAddCustomTagBtn'),
   actualBilledAmount: document.getElementById('actualBilledAmount'),
   deleteExpenseBtn: document.getElementById('deleteExpenseBtn'),
 
@@ -511,17 +517,24 @@ function escapeHtml(str) {
 }
 
 /**
- * 圖表子視圖切換 (圓餅圖 / 分類排行 / 各人負擔)
+ * 圖表子視圖切換 (圓餅圖 / 分類排行 / 成員支出 / 花在誰身上)
  */
 function switchChartTab(tab) {
+  if (tab === 'member') tab = 'payer';
   currentChartTab = tab;
   if (el.btnTabPie) el.btnTabPie.classList.toggle('active', tab === 'pie');
   if (el.btnTabBar) el.btnTabBar.classList.toggle('active', tab === 'bar');
-  if (el.btnTabMember) el.btnTabMember.classList.toggle('active', tab === 'member');
+  if (el.btnTabPayer) el.btnTabPayer.classList.toggle('active', tab === 'payer');
+  if (el.btnTabBeneficiary) el.btnTabBeneficiary.classList.toggle('active', tab === 'beneficiary');
+  if (el.btnTabMember) el.btnTabMember.classList.toggle('active', tab === 'payer');
 
   if (el.chartContainerPie) el.chartContainerPie.style.display = (tab === 'pie') ? 'flex' : 'none';
   if (el.chartContainerBar) el.chartContainerBar.style.display = (tab === 'bar') ? 'flex' : 'none';
-  if (el.chartContainerMember) el.chartContainerMember.style.display = (tab === 'member') ? 'flex' : 'none';
+  if (el.chartContainerPayer) el.chartContainerPayer.style.display = (tab === 'payer') ? 'flex' : 'none';
+  if (el.chartContainerBeneficiary) el.chartContainerBeneficiary.style.display = (tab === 'beneficiary') ? 'flex' : 'none';
+  if (el.chartContainerMember && el.chartContainerMember !== el.chartContainerPayer) {
+    el.chartContainerMember.style.display = (tab === 'payer') ? 'flex' : 'none';
+  }
 }
 
 /**
@@ -620,6 +633,92 @@ function renderPaymentSelectOptions(selectedItemId = null) {
 
     el.expensePaymentMethod.appendChild(optgroup);
   });
+let currentSelectedTags = new Set();
+
+/**
+ * 🏷️ 常用標籤選擇器 (支援關鍵字即時搜尋、自訂新增與刪除)
+ */
+function renderTagChipsSelector(filterText = '', initialActiveTags = null) {
+  if (!el.tagChipsSelector) return;
+  if (initialActiveTags !== null) {
+    currentSelectedTags = new Set(initialActiveTags);
+  }
+
+  const customTags = Storage.getCustomTags();
+  const allTags = Array.from(new Set([...DEFAULT_TAGS, ...customTags]));
+
+  const query = (filterText || '').trim().toLowerCase();
+  const filtered = query
+    ? allTags.filter((t) => t.toLowerCase().includes(query))
+    : allTags;
+
+  el.tagChipsSelector.innerHTML = '';
+
+  if (filtered.length === 0) {
+    const emptyNotice = document.createElement('div');
+    emptyNotice.style.cssText = 'font-size: 0.78rem; color: var(--text-muted); padding: 4px 0;';
+    emptyNotice.textContent = query
+      ? `查無「${query}」標籤，可點擊上方「＋ 新增標籤」直接建立！`
+      : '目前無可用標籤';
+    el.tagChipsSelector.appendChild(emptyNotice);
+    return;
+  }
+
+  filtered.forEach((tag) => {
+    const isCustom = customTags.includes(tag);
+    const chip = document.createElement('span');
+    chip.className = `pill-chip-tag ${currentSelectedTags.has(tag) ? 'active-tag' : ''}`;
+    chip.dataset.tag = tag;
+
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = `#${tag}`;
+    chip.appendChild(labelSpan);
+
+    if (isCustom) {
+      const delBtn = document.createElement('span');
+      delBtn.className = 'tag-del-btn';
+      delBtn.title = `刪除 #${tag} 標籤`;
+      delBtn.textContent = '×';
+      delBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (confirm(`確定要刪除常用標籤「#${tag}」嗎？`)) {
+          Storage.deleteCustomTag(tag);
+          currentSelectedTags.delete(tag);
+          renderTagChipsSelector(el.tagSearchInput?.value || '');
+        }
+      };
+      chip.appendChild(delBtn);
+    }
+
+    chip.onclick = () => {
+      if (currentSelectedTags.has(tag)) {
+        currentSelectedTags.delete(tag);
+        chip.classList.remove('active-tag');
+      } else {
+        currentSelectedTags.add(tag);
+        chip.classList.add('active-tag');
+      }
+    };
+
+    el.tagChipsSelector.appendChild(chip);
+  });
+}
+
+/**
+ * 🏷️ 新增自訂常用標籤
+ */
+function handleAddNewCustomTag() {
+  const input = el.tagSearchInput;
+  const val = (input?.value || '').trim().replace(/^#+/, '');
+  if (!val) {
+    alert('請先在輸入框輸入欲新增的標籤名稱喔！');
+    input?.focus();
+    return;
+  }
+  Storage.addCustomTag(val);
+  currentSelectedTags.add(val);
+  if (input) input.value = '';
+  renderTagChipsSelector('');
 }
 
 /**
@@ -727,17 +826,8 @@ function loadTripData() {
   // 渲染成員頭像圓圈疊加
   renderSquadAvatars(members);
 
-  // 綁定標籤選擇器 (精緻膠囊標籤)
-  el.tagChipsSelector.innerHTML = '';
-  DEFAULT_TAGS.forEach((tag) => {
-    const chip = document.createElement('span');
-    chip.className = 'pill-chip-tag';
-    chip.textContent = `#${tag}`;
-    chip.onclick = () => {
-      chip.classList.toggle('active-tag');
-    };
-    el.tagChipsSelector.appendChild(chip);
-  });
+  // 綁定標籤選擇器 (支援搜尋、新增、刪除)
+  renderTagChipsSelector('');
 
   // 渲染儀表板與分頁
   renderDashboard();
@@ -1196,15 +1286,16 @@ function renderAnalytics() {
     }
   }
 
-  // 3. 繪製成員花費與核對明細 (家庭純記帳核對體系，不分攤)
-  if (el.chartContainerMember) {
-    el.chartContainerMember.innerHTML = '';
+  // 3. 繪製「成員支出」 (誰付款墊付 / 掏錢支付的實際支出統計)
+  const payerContainer = el.chartContainerPayer || el.chartContainerMember;
+  if (payerContainer) {
+    payerContainer.innerHTML = '';
     const members = currentTrip.members || [];
 
     if (total <= 0) {
-      el.chartContainerMember.innerHTML = `
+      payerContainer.innerHTML = `
         <div style="text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 20px 0;">
-          🌱 尚無成員支出紀錄，開始記帳後將即時展示各成員消費統計
+          🌱 尚無成員支出紀錄，開始記帳後將即時展示各成員墊付與付款統計
         </div>
       `;
     } else {
@@ -1264,16 +1355,16 @@ function renderAnalytics() {
               <span class="member-avatar-badge">${m.avatar || '👤'}</span>
               <div>
                 <div class="member-name-text">${escapeHtml(m.name)} <span class="member-role-tag">(${m.role || '夥伴'})</span></div>
-                <div class="member-count-sub">${memberTxs.length} 筆消費紀錄</div>
+                <div class="member-count-sub">實際付款：${memberTxs.length} 筆款項</div>
               </div>
             </div>
             <div class="member-info-right">
               <div class="member-total-amount">NT$ ${formatNumber(memberTotal)}</div>
-              <div class="member-total-pct">佔全團 ${pct}%</div>
+              <div class="member-total-pct">佔全團支出 ${pct}%</div>
             </div>
           </div>
 
-          <!-- 個人花費佔全團比例長條圖 -->
+          <!-- 個人付款佔全團比例長條圖 -->
           <div class="bar-chart-track" style="margin: 8px 0 6px 0;">
             <div class="bar-chart-fill" style="width: ${pct}%; background: ${m.color || 'var(--forest-green)'};"></div>
           </div>
@@ -1285,7 +1376,7 @@ function renderAnalytics() {
 
           ${memberTxs.length > 0 ? `
             <button type="button" class="btn-toggle-member-details" data-expanded="false">
-              <span>📋 查看記帳明細 (${memberTxs.length} 筆)</span>
+              <span>📋 查看付款明細 (${memberTxs.length} 筆)</span>
               <span class="toggle-icon">▾</span>
             </button>
             <div class="member-tx-details-list" style="display: none;">
@@ -1313,8 +1404,214 @@ function renderAnalytics() {
           };
         }
 
-        el.chartContainerMember.appendChild(card);
+        payerContainer.appendChild(card);
       });
+    }
+  }
+
+  // 4. 繪製「花在誰身上」 (各成員實際花費與受用統計分析)
+  if (el.chartContainerBeneficiary) {
+    el.chartContainerBeneficiary.innerHTML = '';
+    const members = currentTrip.members || [];
+
+    if (total <= 0) {
+      el.chartContainerBeneficiary.innerHTML = `
+        <div style="text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 20px 0;">
+          🌱 尚無消費紀錄，開始記帳後將展示每位成員實際花費與受用統計
+        </div>
+      `;
+    } else {
+      // 依序計算每位成員的受用金額 (專屬花費 ＋ 全家共享均分額)
+      members.forEach((m) => {
+        // 該成員專屬花費 (只指定該成員一人)
+        const dedicatedTxs = currentTransactions.filter((t) => {
+          return t.type === 'expense' && Array.isArray(t.beneficiaryIds) && t.beneficiaryIds.length === 1 && t.beneficiaryIds[0] === m.id;
+        });
+        const dedicatedAmt = dedicatedTxs.reduce((sum, tx) => sum + toBaseAmount(tx, currentTrip.baseCurrency), 0);
+
+        // 涉及該成員的所有花費 (包含全家共享 all 或多成員均分)
+        const allInvolvedTxs = currentTransactions.filter((t) => {
+          if (t.type !== 'expense') return false;
+          const ben = t.beneficiaryIds || ['all'];
+          return ben.includes('all') || ben.includes(m.id);
+        });
+
+        // 該成員的總實際受用金額 (若為 all 則依成員數均分，若為多成員則依人數分攤)
+        let memberRealCost = 0;
+        allInvolvedTxs.forEach((tx) => {
+          const ben = tx.beneficiaryIds || ['all'];
+          const baseAmt = toBaseAmount(tx, currentTrip.baseCurrency);
+          if (ben.includes('all')) {
+            memberRealCost += baseAmt / Math.max(members.length, 1);
+          } else if (ben.includes(m.id)) {
+            memberRealCost += baseAmt / Math.max(ben.length, 1);
+          }
+        });
+
+        memberRealCost = Math.round(memberRealCost);
+        const pct = total > 0 ? Math.round((memberRealCost / total) * 100) : 0;
+
+        // 產生該成員花費明細列 (可展開)
+        let txDetailsHtml = '';
+        allInvolvedTxs.forEach((tx) => {
+          const baseAmt = toBaseAmount(tx, currentTrip.baseCurrency);
+          const ben = tx.beneficiaryIds || ['all'];
+          const isDedicated = ben.length === 1 && ben[0] === m.id;
+          const shareLabel = isDedicated ? '🎯 個人專屬' : (ben.includes('all') ? '👨‍👩‍👧‍👦 全家共享均分' : `👥 ${ben.length}人分攤`);
+          const payerName = members.find((mem) => mem.id === tx.payerId)?.name || '夥伴';
+
+          txDetailsHtml += `
+            <div class="member-tx-row">
+              <div class="member-tx-left">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span class="badge" style="font-size:0.68rem; background:${isDedicated ? '#EBF5EB' : '#F0F4F8'}; color:${isDedicated ? 'var(--forest-green)' : 'var(--text-muted)'}; padding: 1px 6px; border-radius: 4px;">${shareLabel}</span>
+                  <span class="member-tx-title">${escapeHtml(tx.notes || tx.category)}</span>
+                </div>
+                <span class="member-tx-meta">${tx.datetime?.slice(5, 16) || ''} · 由 ${escapeHtml(payerName)} 付款</span>
+              </div>
+              <div class="member-tx-right">
+                <div class="member-tx-amt-base">NT$ ${formatNumber(baseAmt)}</div>
+              </div>
+            </div>
+          `;
+        });
+
+        const card = document.createElement('div');
+        card.className = 'member-expense-card';
+        card.innerHTML = `
+          <div class="member-expense-header">
+            <div class="member-info-left">
+              <span class="member-avatar-badge">${m.avatar || '👤'}</span>
+              <div>
+                <div class="member-name-text">${escapeHtml(m.name)} <span class="member-role-tag">(${m.role || '夥伴'})</span></div>
+                <div class="member-count-sub">個人專屬 NT$ ${formatNumber(dedicatedAmt)} · 相關共 ${allInvolvedTxs.length} 筆</div>
+              </div>
+            </div>
+            <div class="member-info-right">
+              <div class="member-total-amount" style="color: var(--forest-dark);">NT$ ${formatNumber(memberRealCost)}</div>
+              <div class="member-total-pct">佔全團花費 ${pct}%</div>
+            </div>
+          </div>
+
+          <div class="bar-chart-track" style="margin: 8px 0 6px 0;">
+            <div class="bar-chart-fill" style="width: ${pct}%; background: ${m.color || '#3D6B4F'};"></div>
+          </div>
+
+          <div style="display: flex; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+            <span>🎯 專屬消費：<strong>NT$ ${formatNumber(dedicatedAmt)}</strong></span>
+            <span>·</span>
+            <span>👨‍👩‍👧‍👦 共享均分：<strong>NT$ ${formatNumber(Math.max(0, memberRealCost - dedicatedAmt))}</strong></span>
+          </div>
+
+          ${allInvolvedTxs.length > 0 ? `
+            <button type="button" class="btn-toggle-member-details" data-expanded="false" style="margin-top: 6px;">
+              <span>📋 查看花費明細 (${allInvolvedTxs.length} 筆)</span>
+              <span class="toggle-icon">▾</span>
+            </button>
+            <div class="member-tx-details-list" style="display: none;">
+              ${txDetailsHtml}
+            </div>
+          ` : ''}
+        `;
+
+        const toggleBtn = card.querySelector('.btn-toggle-member-details');
+        if (toggleBtn) {
+          const detailsList = card.querySelector('.member-tx-details-list');
+          const toggleIcon = card.querySelector('.toggle-icon');
+          toggleBtn.onclick = () => {
+            const isExpanded = toggleBtn.getAttribute('data-expanded') === 'true';
+            if (isExpanded) {
+              detailsList.style.display = 'none';
+              toggleBtn.setAttribute('data-expanded', 'false');
+              toggleIcon.textContent = '▾';
+            } else {
+              detailsList.style.display = 'flex';
+              toggleBtn.setAttribute('data-expanded', 'true');
+              toggleIcon.textContent = '▴';
+            }
+          };
+        }
+
+        el.chartContainerBeneficiary.appendChild(card);
+      });
+
+      // 額外展示全家共享大宗消費彙整卡 (住宿、租車、全體餐點)
+      const familySharedTxs = currentTransactions.filter((t) => {
+        return t.type === 'expense' && (t.beneficiaryIds || ['all']).includes('all');
+      });
+      const familySharedTotal = familySharedTxs.reduce((sum, tx) => sum + toBaseAmount(tx, currentTrip.baseCurrency), 0);
+      const sharedPct = total > 0 ? Math.round((familySharedTotal / total) * 100) : 0;
+
+      if (familySharedTxs.length > 0) {
+        let sharedDetailsHtml = '';
+        familySharedTxs.forEach((tx) => {
+          const baseAmt = toBaseAmount(tx, currentTrip.baseCurrency);
+          const payerName = members.find((mem) => mem.id === tx.payerId)?.name || '夥伴';
+          sharedDetailsHtml += `
+            <div class="member-tx-row">
+              <div class="member-tx-left">
+                <span class="member-tx-title">${escapeHtml(tx.notes || tx.category)}</span>
+                <span class="member-tx-meta">${tx.datetime?.slice(5, 16) || ''} · 由 ${escapeHtml(payerName)} 支付</span>
+              </div>
+              <div class="member-tx-right">
+                <div class="member-tx-amt-base">NT$ ${formatNumber(baseAmt)}</div>
+              </div>
+            </div>
+          `;
+        });
+
+        const sharedCard = document.createElement('div');
+        sharedCard.className = 'member-expense-card';
+        sharedCard.style.border = '1.5px dashed #C8DEC9';
+        sharedCard.style.background = '#F9FBF8';
+        sharedCard.innerHTML = `
+          <div class="member-expense-header">
+            <div class="member-info-left">
+              <span class="member-avatar-badge" style="background: #EAF3E8; color: var(--forest-green);">👨‍👩‍👧‍👦</span>
+              <div>
+                <div class="member-name-text">全家共享消費 (公用開銷)</div>
+                <div class="member-count-sub">住宿、包車、全體大餐等共 ${familySharedTxs.length} 筆</div>
+              </div>
+            </div>
+            <div class="member-info-right">
+              <div class="member-total-amount" style="color: var(--forest-green);">NT$ ${formatNumber(familySharedTotal)}</div>
+              <div class="member-total-pct">佔全團 ${sharedPct}%</div>
+            </div>
+          </div>
+
+          <div class="bar-chart-track" style="margin: 8px 0 6px 0;">
+            <div class="bar-chart-fill" style="width: ${sharedPct}%; background: var(--forest-green);"></div>
+          </div>
+
+          <button type="button" class="btn-toggle-member-details" data-expanded="false" style="margin-top: 6px;">
+            <span>📋 查看全家共享明細 (${familySharedTxs.length} 筆)</span>
+            <span class="toggle-icon">▾</span>
+          </button>
+          <div class="member-tx-details-list" style="display: none;">
+            ${sharedDetailsHtml}
+          </div>
+        `;
+
+        const sToggleBtn = sharedCard.querySelector('.btn-toggle-member-details');
+        if (sToggleBtn) {
+          const sDetailsList = sharedCard.querySelector('.member-tx-details-list');
+          const sToggleIcon = sharedCard.querySelector('.toggle-icon');
+          sToggleBtn.onclick = () => {
+            const isExpanded = sToggleBtn.getAttribute('data-expanded') === 'true';
+            if (isExpanded) {
+              sDetailsList.style.display = 'none';
+              sToggleBtn.setAttribute('data-expanded', 'false');
+              sToggleIcon.textContent = '▾';
+            } else {
+              sDetailsList.style.display = 'flex';
+              sToggleBtn.setAttribute('data-expanded', 'true');
+              sToggleIcon.textContent = '▴';
+            }
+          };
+        }
+
+        el.chartContainerBeneficiary.appendChild(sharedCard);
+      }
     }
   }
 
@@ -1481,19 +1778,23 @@ function renderSettings() {
         return; // 若該分類無項目且非選中分類，不顯示空區塊
       }
 
-      const groupEl = document.createElement('div');
+      const groupEl = document.createElement('details');
       groupEl.className = 'payment-category-group';
+      groupEl.open = true;
 
-      // 分組標題
+      // 分組標題 (支援折疊與展開，清爽美觀)
       groupEl.innerHTML = `
-        <div class="payment-category-header">
+        <summary class="payment-category-header">
           <div class="payment-cat-title-wrap">
             <span class="payment-cat-title">${cfg.icon} ${cfg.label}</span>
             <span class="payment-cat-count-badge">${itemsInCat.length} 項</span>
           </div>
-          <span class="payment-cat-note">${cfg.note}</span>
-        </div>
-        <div class="payment-group-cards"></div>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span class="payment-cat-note">${cfg.note}</span>
+            <span class="group-toggle-arrow">▾</span>
+          </div>
+        </summary>
+        <div class="payment-group-cards" style="margin-top: 8px;"></div>
       `;
 
       const cardsContainer = groupEl.querySelector('.payment-group-cards');
@@ -1778,10 +2079,9 @@ function openAddExpenseModal() {
   currentPhotoAttachment = null;
   resetPhotoPreview();
 
-  // 清除標籤選取
-  if (el.tagChipsSelector) {
-    el.tagChipsSelector.querySelectorAll('.active-tag').forEach((c) => c.classList.remove('active-tag'));
-  }
+  // 清除標籤選取與搜尋框
+  if (el.tagSearchInput) el.tagSearchInput.value = '';
+  renderTagChipsSelector('', []);
 
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -1837,13 +2137,9 @@ function openEditExpenseModal(tx) {
   }
   el.customRateRow.style.display = 'none';
 
-  // 標籤回填
-  if (el.tagChipsSelector) {
-    el.tagChipsSelector.querySelectorAll('.pill-chip-tag').forEach((chip) => {
-      const tagName = chip.textContent.replace('#', '');
-      chip.classList.toggle('active-tag', (tx.tags || []).includes(tagName));
-    });
-  }
+  // 標籤回填與搜尋框重設
+  if (el.tagSearchInput) el.tagSearchInput.value = '';
+  renderTagChipsSelector('', tx.tags || []);
 
   // 具體支付工具 / 卡片選取
   renderPaymentSelectOptions(tx.paymentItemId);
@@ -2418,10 +2714,28 @@ function openAddPaymentItemModal() {
     };
   });
 
-  // 圖表切換按鈕 (圓餅圖 / 分類排行 / 各人負擔)
+  // 圖表切換按鈕 (圓餅圖 / 分類排行 / 成員支出 / 花在誰身上)
   if (el.btnTabPie) el.btnTabPie.onclick = () => switchChartTab('pie');
   if (el.btnTabBar) el.btnTabBar.onclick = () => switchChartTab('bar');
-  if (el.btnTabMember) el.btnTabMember.onclick = () => switchChartTab('member');
+  if (el.btnTabPayer) el.btnTabPayer.onclick = () => switchChartTab('payer');
+  if (el.btnTabBeneficiary) el.btnTabBeneficiary.onclick = () => switchChartTab('beneficiary');
+  if (el.btnTabMember) el.btnTabMember.onclick = () => switchChartTab('payer');
+
+  // 常用標籤搜尋與新增監聽
+  if (el.tagSearchInput) {
+    el.tagSearchInput.oninput = (e) => {
+      renderTagChipsSelector(e.target.value);
+    };
+    el.tagSearchInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddNewCustomTag();
+      }
+    };
+  }
+  if (el.btnAddCustomTagBtn) {
+    el.btnAddCustomTagBtn.onclick = handleAddNewCustomTag;
+  }
 
   // 報表頁籤總結算報告按鈕
   if (el.reportTabFinishBtn) {
@@ -2595,7 +2909,8 @@ function openAddPaymentItemModal() {
 
     const selectedTags = [];
     el.tagChipsSelector.querySelectorAll('.active-tag').forEach((chip) => {
-      selectedTags.push(chip.textContent.replace('#', ''));
+      const tagVal = chip.dataset.tag || chip.textContent.replace('#', '').replace('×', '').trim();
+      if (tagVal) selectedTags.push(tagVal);
     });
 
     let photoId = null;

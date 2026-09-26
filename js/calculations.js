@@ -66,7 +66,13 @@ export function calculateTripSummary(trip, transactions = []) {
   // 每日支出
   const byDate = {};
 
-  // 成員支出 (花在誰身上)
+  // 實際付款人支出累計 (誰拿卡/掏錢支付)
+  const byPayer = {};
+  (trip.members || []).forEach((m) => {
+    byPayer[m.id] = 0;
+  });
+
+  // 成員支出 (花在誰身上 - 受用人)
   const byBeneficiary = {
     all: 0
   };
@@ -156,6 +162,10 @@ export function calculateTripSummary(trip, transactions = []) {
       });
     }
 
+    // 實際付款人累計 (Payer)
+    const payer = tx.payerId || (trip.members?.[0]?.id || 'm_me');
+    byPayer[payer] = (byPayer[payer] || 0) + baseAmt;
+
     // 標籤累計
     (tx.tags || []).forEach((t) => {
       byTag[t] = (byTag[t] || 0) + baseAmt;
@@ -226,6 +236,7 @@ export function calculateTripSummary(trip, transactions = []) {
     byCategory,
     byCity,
     byDate,
+    byPayer,
     byBeneficiary,
     byTag,
     categoryBudgetStatus

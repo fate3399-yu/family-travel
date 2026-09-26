@@ -1520,6 +1520,28 @@ body {
   transition: var(--transition);
 }
 
+details.payment-category-group summary.payment-category-header {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+details.payment-category-group summary::-webkit-details-marker {
+  display: none;
+}
+
+details.payment-category-group .group-toggle-arrow {
+  font-size: 0.85rem;
+  color: var(--forest-green);
+  transition: transform 0.2s ease;
+  display: inline-block;
+  margin-left: 6px;
+}
+
+details.payment-category-group[open] .group-toggle-arrow {
+  transform: rotate(180deg);
+}
+
 .payment-category-header {
   display: flex;
   justify-content: space-between;
@@ -1856,7 +1878,9 @@ body {
   cursor: pointer;
   transition: var(--transition);
   user-select: none;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .pill-chip-tag:hover {
@@ -1870,21 +1894,46 @@ body {
   box-shadow: 0 2px 6px rgba(61, 107, 79, 0.2);
 }
 
+.tag-del-btn {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  border-radius: 50%;
+  transition: color 0.15s ease;
+}
+
+.tag-del-btn:hover {
+  color: var(--danger);
+}
+
+.pill-chip-tag.active-tag .tag-del-btn {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.pill-chip-tag.active-tag .tag-del-btn:hover {
+  color: #FFFFFF;
+}
+
 /* ================= 統計圖表與分析視圖 (移植 money 專案) ================= */
 .chart-tab-bar {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   background: #EEF4EC;
   padding: 4px;
   border-radius: var(--radius-pill);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .chart-tab-pill {
   flex: 1;
+  min-width: fit-content;
   border: none;
   background: transparent;
-  padding: 8px 6px;
-  font-size: 0.82rem;
+  padding: 8px 8px;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-muted);
   border-radius: var(--radius-pill);

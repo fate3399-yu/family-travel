@@ -2,7 +2,7 @@
  * storage.js - 本地狀態管理、種子資料與「快速記帳記憶」
  */
 
-import { createTrip, createTransaction, DEFAULT_PAYMENT_ITEMS } from './models.js';
+import { createTrip, createTransaction, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS } from './models.js';
 
 const STORAGE_KEYS = {
   TRIPS: 'ft_trips',
@@ -345,5 +345,42 @@ export const Storage = {
 
   setAppMode(mode) {
     localStorage.setItem(STORAGE_KEYS.APP_MODE, mode);
+  },
+
+  // 🏷️ 常用標籤自訂管理 (新增、刪除、持久化)
+  getCustomTags() {
+    const raw = localStorage.getItem('ft_custom_tags');
+    if (!raw) {
+      this.saveCustomTags(DEFAULT_TAGS);
+      return DEFAULT_TAGS;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return DEFAULT_TAGS;
+    }
+  },
+
+  saveCustomTags(tags) {
+    localStorage.setItem('ft_custom_tags', JSON.stringify(tags));
+  },
+
+  addCustomTag(tag) {
+    const clean = String(tag || '').trim().replace(/^#/, '');
+    if (!clean) return this.getCustomTags();
+    const tags = this.getCustomTags();
+    if (!tags.includes(clean)) {
+      tags.push(clean);
+      this.saveCustomTags(tags);
+    }
+    return tags;
+  },
+
+  deleteCustomTag(tag) {
+    const clean = String(tag || '').trim().replace(/^#/, '');
+    let tags = this.getCustomTags();
+    tags = tags.filter((t) => t !== clean);
+    this.saveCustomTags(tags);
+    return tags;
   }
 };
