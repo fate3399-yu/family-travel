@@ -137,6 +137,9 @@ const el = {
   btnModePrepaid: document.getElementById('btnModePrepaid'),
   expenseAmount: document.getElementById('expenseAmount'),
   expenseCurrency: document.getElementById('expenseCurrency'),
+  btnPasteClipboard: document.getElementById('btnPasteClipboard'),
+  quickAmountRow: document.getElementById('quickAmountRow'),
+  quickPresetChips: document.getElementById('quickPresetChips'),
 
   // 🌟 即時換算台幣提示卡
   liveConversionBox: document.getElementById('liveConversionBox'),
@@ -840,6 +843,33 @@ function applyTheme(theme = 'pikmin', saveCurrentTrip = false) {
   const statLabel = document.querySelector('#travelModeHero .stat-label');
   if (statLabel) {
     statLabel.textContent = normalizedTheme === 'acnh' ? '🍃 今日花費 (當地貨幣)' : '🌱 今日累積花費 (當地貨幣)';
+  }
+
+  // 底部導航欄圖案切換 (動森風格 vs 皮克敏風格)
+  const dockIconTimeline = document.getElementById('dockIconTimeline');
+  const dockIconAnalytics = document.getElementById('dockIconAnalytics');
+  const dockIconAdd = document.getElementById('dockIconAdd');
+  const dockIconWallets = document.getElementById('dockIconWallets');
+  const dockIconSettings = document.getElementById('dockIconSettings');
+
+  if (normalizedTheme === 'acnh') {
+    if (dockIconTimeline) dockIconTimeline.textContent = '🍃';
+    if (dockIconAnalytics) dockIconAnalytics.textContent = '📜';
+    if (dockIconAdd) {
+      dockIconAdd.textContent = '💰';
+      dockIconAdd.style.filter = 'drop-shadow(0 2px 6px rgba(245, 158, 11, 0.45))';
+    }
+    if (dockIconWallets) dockIconWallets.textContent = '🪙';
+    if (dockIconSettings) dockIconSettings.textContent = '🎫';
+  } else {
+    if (dockIconTimeline) dockIconTimeline.textContent = '🌱';
+    if (dockIconAnalytics) dockIconAnalytics.textContent = '📊';
+    if (dockIconAdd) {
+      dockIconAdd.textContent = '🌸';
+      dockIconAdd.style.filter = 'drop-shadow(0 2px 4px rgba(236, 72, 153, 0.3))';
+    }
+    if (dockIconWallets) dockIconWallets.textContent = '🪙';
+    if (dockIconSettings) dockIconSettings.textContent = '🏷️';
   }
 
   // 帳本管理視窗切換按鈕狀態
@@ -2441,12 +2471,178 @@ function getAutoPayerIdForCurrentUser() {
 }
 
 /**
+ * 🌟 快速面額鍵盤 (依幣別動態生成 +1000, +5000, +10000, +50000 等快捷面額)
+ */
+function renderQuickAmountSteppers() {
+  if (!el.quickAmountRow) return;
+  el.quickAmountRow.innerHTML = '';
+
+  const curr = el.expenseCurrency?.value || currentTrip?.targetCurrency || 'JPY';
+  let steps = [];
+  if (curr === 'KRW') {
+    steps = [1000, 5000, 10000, 50000];
+  } else if (curr === 'JPY') {
+    steps = [500, 1000, 5000, 10000];
+  } else if (curr === 'TWD' || curr === 'HKD') {
+    steps = [100, 500, 1000, 2000];
+  } else if (curr === 'USD' || curr === 'EUR' || curr === 'GBP') {
+    steps = [5, 10, 20, 50];
+  } else {
+    steps = [100, 500, 1000, 5000];
+  }
+
+  steps.forEach((step) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-amount-stepper';
+    btn.textContent = `+${formatNumber(step)}`;
+    btn.onclick = () => {
+      const cur = parseFloat(el.expenseAmount.value) || 0;
+      el.expenseAmount.value = cur + step;
+      updateLiveConversion();
+    };
+    el.quickAmountRow.appendChild(btn);
+  });
+
+  // 歸零清空按鈕
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'btn-amount-stepper btn-amount-clear';
+  clearBtn.textContent = 'C 清空';
+  clearBtn.onclick = () => {
+    el.expenseAmount.value = '';
+    updateLiveConversion();
+    el.expenseAmount.focus();
+  };
+  el.quickAmountRow.appendChild(clearBtn);
+}
+
+/**
+ * 🌟 智慧品項關鍵字自動歸類與標籤 (Smart Auto-Categorization)
+ */
+function autoCategorizeExpense(text) {
+  if (!text) return;
+  const lower = text.toLowerCase();
+
+  const foodKeywords = ['拉麵', '一蘭', '壽司', '烤肉', '燒肉', '晚餐', '午餐', '早餐', '便當', '居酒屋', '餐廳', '火鍋', '炸豬排', '牛舌', '炸雞', '鰻魚飯', '啤酒', '麥當勞', 'kfc', '小吃', '夜市', '點心', '包子', '水餃'];
+  const cafeKeywords = ['星巴克', 'starbucks', '咖啡', 'cafe', '甜點', '蛋糕', '冰淇淋', '可麗餅', '下午茶', '麵包', '烘焙', '手搖', '珍奶'];
+  const convKeywords = ['7-11', '7-eleven', '全家', 'family', 'lawson', '羅森', '超商', '便利商店', '宵夜'];
+  const trafficKeywords = ['地鐵', 'metro', 'subway', '加值', '儲值', '西瓜卡', 'suica', 'icoca', 't-money', 'wowpass', '公車', '巴士', 'bus', '計程車', 'taxi', 'uber', '新幹線', '電車', '交通卡', '搭車'];
+  const stayKeywords = ['飯店', '酒店', 'hotel', '民宿', 'airbnb', '溫泉', '旅館', 'check-in', '訂房'];
+  const shopKeywords = ['藥妝', '大國', '松本清', '唐吉訶德', '驚安', 'bic camera', 'yodobashi', 'uniqlo', 'gu', '無印良品', '免稅店', '買衣服', '鞋子', '伴手禮', '紀念品', '代購', '超市', '百貨'];
+  const sightKeywords = ['迪士尼', '環球影城', 'usj', '門票', '水族館', '樂園', '美術館', '展望台', '晴空塔', '東京鐵塔', '和服體驗', '韓服體驗', '景點'];
+
+  if (trafficKeywords.some((k) => lower.includes(k))) {
+    el.expenseCategory.value = 'traffic';
+    const payOptions = Array.from(el.expensePaymentMethod.options);
+    const transitOpt = payOptions.find((o) => o.textContent.includes('卡') || o.textContent.includes('Suica') || o.textContent.includes('T-money') || o.textContent.includes('WOWPASS') || o.textContent.includes('交通'));
+    if (transitOpt) el.expensePaymentMethod.value = transitOpt.value;
+  } else if (stayKeywords.some((k) => lower.includes(k))) {
+    el.expenseCategory.value = 'stay';
+  } else if (shopKeywords.some((k) => lower.includes(k))) {
+    el.expenseCategory.value = 'shopping';
+    if (lower.includes('免稅')) activateTagChip('免稅店');
+    if (lower.includes('伴手禮')) activateTagChip('伴手禮');
+    if (lower.includes('必買')) activateTagChip('必買');
+  } else if (sightKeywords.some((k) => lower.includes(k))) {
+    el.expenseCategory.value = 'sightseeing';
+  } else if (cafeKeywords.some((k) => lower.includes(k))) {
+    el.expenseCategory.value = 'cafe';
+  } else if (convKeywords.some((k) => lower.includes(k))) {
+    el.expenseCategory.value = 'food';
+    activateTagChip('宵夜');
+  } else if (foodKeywords.some((k) => lower.includes(k))) {
+    el.expenseCategory.value = 'food';
+  }
+}
+
+/**
+ * 🌟 快速點亮特定常用標籤
+ */
+function activateTagChip(tagName) {
+  if (!el.tagChipsSelector) return;
+  const chips = el.tagChipsSelector.querySelectorAll('.pill-chip-tag');
+  chips.forEach((c) => {
+    if (c.dataset.tag === tagName) {
+      c.classList.add('active-tag');
+      currentSelectedTags.add(tagName);
+    }
+  });
+}
+
+/**
+ * 🌟 旅遊極速快捷情境範本 (1 秒自動配置)
+ */
+function applyQuickPreset(type) {
+  const curr = el.expenseCurrency?.value || currentTrip?.targetCurrency || 'JPY';
+  if (type === 'transit') {
+    el.expenseNotes.value = '地鐵交通加值';
+    el.expenseCategory.value = 'traffic';
+    if (!el.expenseAmount.value || el.expenseAmount.value === '0') {
+      el.expenseAmount.value = curr === 'KRW' ? '10000' : (curr === 'JPY' ? '1000' : '500');
+    }
+    const payOptions = Array.from(el.expensePaymentMethod.options);
+    const transitOpt = payOptions.find((o) => o.textContent.includes('卡') || o.textContent.includes('Suica') || o.textContent.includes('T-money') || o.textContent.includes('WOWPASS') || o.textContent.includes('交通'));
+    if (transitOpt) el.expensePaymentMethod.value = transitOpt.value;
+  } else if (type === 'convenience') {
+    el.expenseNotes.value = '便利超商採買';
+    el.expenseCategory.value = 'food';
+    activateTagChip('宵夜');
+  } else if (type === 'meal') {
+    el.expenseNotes.value = '特色正餐美食';
+    el.expenseCategory.value = 'food';
+  } else if (type === 'cafe') {
+    el.expenseNotes.value = '咖啡甜點點心';
+    el.expenseCategory.value = 'cafe';
+  } else if (type === 'shopping') {
+    el.expenseNotes.value = '藥妝免稅購物';
+    el.expenseCategory.value = 'shopping';
+    activateTagChip('免稅店');
+    activateTagChip('必買');
+  }
+  updateLiveConversion();
+  el.expenseAmount.focus();
+}
+
+/**
+ * 🌟 智慧剪貼簿讀取與自動辨識
+ */
+async function handlePasteClipboard() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text || !text.trim()) {
+      showToast('剪貼簿目前沒有文字喔', '📋');
+      return;
+    }
+    const numMatch = text.match(/[\d,]+(\.\d+)?/);
+    if (numMatch) {
+      const cleanNum = numMatch[0].replace(/,/g, '');
+      if (!isNaN(parseFloat(cleanNum))) {
+        el.expenseAmount.value = parseFloat(cleanNum);
+      }
+    }
+    const lines = text.split(/[\r\n]+/).map((s) => s.trim()).filter(Boolean);
+    const firstLine = lines[0] || '';
+    if (!el.expenseNotes.value && firstLine.length <= 40) {
+      el.expenseNotes.value = firstLine;
+      autoCategorizeExpense(firstLine);
+    }
+    updateLiveConversion();
+    showToast('✨ 已從剪貼簿智慧辨識並帶入！', '📋');
+  } catch (err) {
+    console.warn('剪貼簿讀取權限限制:', err);
+    showToast('請手動長按輸入框貼上內容', 'ℹ️');
+  }
+}
+
+/**
  * 開啟支出輸入彈窗
  */
 function openAddExpenseModal() {
   el.expenseForm.reset();
   el.editExpenseId.value = '';
-  el.expenseModalTitle.textContent = '🌱 記一筆旅行支出';
+  const isAcnh = document.body.dataset.theme === 'acnh';
+  el.expenseModalTitle.textContent = isAcnh ? '🍃 記一筆島民生活支出' : '🌱 記一筆旅行支出';
   el.deleteExpenseBtn.style.display = 'none';
   el.expenseCustomRate.value = '';
   el.customRateRow.style.display = 'none';
@@ -2503,6 +2699,7 @@ function openAddExpenseModal() {
 
   // 🌟 4. 立即更新折合台幣與匯率提示條 (如 1 KRW ≈ 0.0240 TWD)
   updateLiveConversion();
+  renderQuickAmountSteppers();
 
   el.expenseModal.classList.add('open');
   setTimeout(() => el.expenseAmount.focus(), 150);
@@ -2510,7 +2707,8 @@ function openAddExpenseModal() {
 
 function openEditExpenseModal(tx) {
   el.editExpenseId.value = tx.id;
-  el.expenseModalTitle.textContent = '✏️ 編輯旅行支出';
+  const isAcnh = document.body.dataset.theme === 'acnh';
+  el.expenseModalTitle.textContent = isAcnh ? '✏️ 編輯島民支出' : '✏️ 編輯旅行支出';
   el.deleteExpenseBtn.style.display = 'block';
 
   el.expenseAmount.value = tx.amount;
@@ -2529,6 +2727,8 @@ function openEditExpenseModal(tx) {
     el.expenseCustomRate.value = '';
   }
   el.customRateRow.style.display = 'none';
+
+  renderQuickAmountSteppers();
 
   // 標籤回填與搜尋框重設
   if (el.tagSearchInput) el.tagSearchInput.value = '';
@@ -3054,6 +3254,50 @@ function bindEvents() {
     el.expenseCustomRate.value = '';
     updateLiveConversion();
   };
+
+  // 🌟 剪貼簿智慧讀取與填寫
+  if (el.btnPasteClipboard) {
+    el.btnPasteClipboard.onclick = handlePasteClipboard;
+  }
+
+  // 🌟 記帳快捷情境點擊 (一鍵帶入交通/超商/正餐/咖啡/藥妝)
+  if (el.quickPresetChips) {
+    el.quickPresetChips.querySelectorAll('.btn-quick-preset').forEach((btn) => {
+      btn.onclick = () => {
+        applyQuickPreset(btn.dataset.preset);
+      };
+    });
+  }
+
+  // 🌟 品項關鍵字自動歸類與推薦標籤
+  if (el.expenseNotes) {
+    el.expenseNotes.addEventListener('input', () => {
+      autoCategorizeExpense(el.expenseNotes.value);
+    });
+  }
+
+  // 🌟 幣別切換時同步更新快速面額鍵盤
+  el.expenseCurrency.addEventListener('change', () => {
+    updateLiveConversion();
+    renderQuickAmountSteppers();
+  });
+
+  // 🌟 支援簡易四則運算 (例如 1200+350 在失焦時自動算出 1550)
+  if (el.expenseAmount) {
+    el.expenseAmount.addEventListener('change', () => {
+      const val = String(el.expenseAmount.value).trim();
+      if (val.includes('+') || val.includes('-') || val.includes('*') || val.includes('/')) {
+        try {
+          const sanitized = val.replace(/[^0-9\.\+\-\*\/]/g, '');
+          const calcResult = Function(`'use strict'; return (${sanitized})`)();
+          if (!isNaN(calcResult) && isFinite(calcResult)) {
+            el.expenseAmount.value = Math.round(calcResult * 100) / 100;
+            updateLiveConversion();
+          }
+        } catch (_) {}
+      }
+    });
+  }
 
 /**
  * 開啟新增支付工具 Modal (專屬於當前帳本)

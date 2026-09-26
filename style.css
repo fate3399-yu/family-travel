@@ -2616,6 +2616,82 @@ body[data-theme="acnh"] .pill-chip-tag.active-tag {
   box-shadow: 0 0 0 1.5px var(--primary);
 }
 
+/* 🍃 動森風格底部導航專屬優化 */
+body[data-theme="acnh"] .dock-btn-add {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%) !important;
+  border: 1.5px solid #F59E0B !important;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35) !important;
+}
+
+body[data-theme="acnh"] .dock-btn-add #dockLabelAdd {
+  color: #92400E !important;
+}
+
+/* ⚡ 記帳快捷場景晶片 */
+.quick-preset-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+}
+
+.btn-quick-preset {
+  background: var(--bg-soft);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: var(--transition);
+}
+
+.btn-quick-preset:hover {
+  background: var(--forest-tint);
+  border-color: var(--forest-green);
+  color: var(--forest-dark);
+}
+
+.btn-quick-preset:active {
+  transform: scale(0.95);
+}
+
+/* 快速面額鍵盤 */
+.btn-amount-stepper {
+  background: #FFFFFF;
+  color: var(--forest-dark);
+  border: 1.5px solid #D5E2D4;
+  padding: 4px 9px;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: var(--transition);
+}
+
+.btn-amount-stepper:hover {
+  background: var(--forest-tint);
+  border-color: var(--forest-green);
+}
+
+.btn-amount-stepper:active {
+  transform: scale(0.93);
+}
+
+.btn-amount-clear {
+  color: #DC2626;
+  border-color: #FECACA;
+  background: #FFF5F5;
+}
+
+
 
 
 

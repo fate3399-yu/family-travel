@@ -256,35 +256,35 @@
     </section>
   </main>
 
-  <!-- 🌟 手機版極致 5 功能浮動導航膠囊 (Floating Dock - 100% 移植 money 專案極致美學) -->
+  <!-- 🌟 手機版極致 5 功能浮動導航膠囊 (Floating Dock - 支援主題切換) -->
   <nav class="bottom-dock bottom-nav-bar" id="bottomDock">
     <!-- 1. 當前行程 / 時間軸 -->
     <button class="dock-item bottom-nav-item active" data-tab="timeline">
-      <span class="dock-icon">🌱</span>
+      <span class="dock-icon" id="dockIconTimeline">🌱</span>
       <span class="dock-label">當前行程</span>
     </button>
 
     <!-- 2. 統計報表 / 圖表 -->
     <button class="dock-item bottom-nav-item" data-tab="analytics">
-      <span class="dock-icon">📊</span>
+      <span class="dock-icon" id="dockIconAnalytics">📊</span>
       <span class="dock-label">圖表</span>
     </button>
 
-    <!-- 3. 中央置中櫻花記一筆快捷鍵 -->
+    <!-- 3. 中央置中記一筆快捷鍵 -->
     <button type="button" id="fabAddExpenseBtn" class="dock-item dock-btn-add" title="記一筆">
-      <span class="dock-icon" style="font-size: 1.55rem; color: #EC4899; display: block; filter: drop-shadow(0 2px 4px rgba(236,72,153,0.3));">🌸</span>
-      <span class="dock-label" style="font-weight: 800; color: var(--forest-green);">記一筆</span>
+      <span class="dock-icon" id="dockIconAdd" style="font-size: 1.55rem; color: #EC4899; display: block; filter: drop-shadow(0 2px 4px rgba(236,72,153,0.3));">🌸</span>
+      <span class="dock-label" id="dockLabelAdd" style="font-weight: 800; color: var(--forest-green);">記一筆</span>
     </button>
 
     <!-- 4. 換匯錢包 -->
     <button class="dock-item bottom-nav-item" data-tab="wallets">
-      <span class="dock-icon">🪙</span>
+      <span class="dock-icon" id="dockIconWallets">🪙</span>
       <span class="dock-label">換匯錢包</span>
     </button>
 
     <!-- 5. 項目與卡片設定 -->
     <button class="dock-item bottom-nav-item" data-tab="settings">
-      <span class="dock-icon">🏷️</span>
+      <span class="dock-icon" id="dockIconSettings">🏷️</span>
       <span class="dock-label">項目卡片</span>
     </button>
   </nav>
@@ -311,16 +311,30 @@
           </div>
         </div>
 
-        <!-- 2. 金額與幣別整合大輸入框 (附即時台幣折算標籤) -->
+        <!-- ⚡ 旅遊極速快捷情境 (1 秒帶入) -->
+        <div class="quick-preset-chips" id="quickPresetChips">
+          <button type="button" class="btn-quick-preset" data-preset="transit">🚇 交通加值</button>
+          <button type="button" class="btn-quick-preset" data-preset="convenience">🏪 超商採買</button>
+          <button type="button" class="btn-quick-preset" data-preset="meal">🍜 餐廳聚餐</button>
+          <button type="button" class="btn-quick-preset" data-preset="cafe">☕ 咖啡甜點</button>
+          <button type="button" class="btn-quick-preset" data-preset="shopping">🛍️ 藥妝免稅</button>
+        </div>
+
+        <!-- 2. 金額與幣別整合大輸入框 (附即時台幣折算標籤與快速面額鍵盤) -->
         <div class="form-group">
           <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-            <span>支出金額與幣別 *</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span>支出金額與幣別 *</span>
+              <button type="button" id="btnPasteClipboard" class="btn-text-sm" style="font-size: 0.72rem; color: var(--forest-dark); background: var(--forest-tint); border: 1px solid var(--border); padding: 1px 7px; border-radius: 6px; cursor: pointer; font-weight: 700;" title="從剪貼簿智慧讀取金額與品項">📋 貼上辨識</button>
+            </div>
             <span id="liveConvertedAmount" class="live-converted-pill">≈ NT$ 0</span>
           </label>
           <div class="amount-input-box">
             <select class="currency-select" id="expenseCurrency"></select>
             <input type="number" id="expenseAmount" placeholder="0" step="any" required inputmode="decimal">
           </div>
+          <!-- 快速面額累加按鈕列 -->
+          <div class="quick-amount-row" id="quickAmountRow" style="display: flex; gap: 5px; margin-top: 5px; overflow-x: auto; padding-bottom: 2px;"></div>
         </div>
 
         <!-- 3. 精巧匯率提示條 (取代突兀大綠框) -->
