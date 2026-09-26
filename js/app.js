@@ -1053,7 +1053,7 @@ function renderTimelineFilters() {
 function renderTimeline() {
   el.timelineContainer.innerHTML = '';
 
-  let list = currentTransactions.filter((tx) => tx.type === 'expense');
+  let list = currentTransactions.filter((tx) => !tx.type || tx.type === 'expense');
 
   // 1. 城市篩選
   if (selectedFilterCity !== 'all') {
@@ -1065,18 +1065,93 @@ function renderTimeline() {
     list = list.filter((tx) => tx.category === selectedFilterCategory);
   }
 
-  // 3. 關鍵字搜尋過濾 (支出名稱、備註、付款人、分類、標籤、支付工具)
+  // 3. 關鍵字搜尋過濾 (全方位：品項、備註、金額、幣別、分類、城市、付款人、受用人、支付卡片、標籤、日期)
   if (timelineSearchKeyword) {
-    const kw = timelineSearchKeyword.toLowerCase();
+    const rawTokens = timelineSearchKeyword.toLowerCase().split(/\s+/).filter(Boolean);
     const members = currentTrip?.members || [];
+    const familyMembers = getCurrentFamilyMembers() || [];
+    const allMembers = [...members, ...familyMembers];
+    const paymentItems = Storage.getPaymentItems() || [];
+
     list = list.filter((tx) => {
-      const notes = (tx.notes || '').toLowerCase();
-      const cat = (CATEGORIES[tx.category]?.label || tx.category || '').toLowerCase();
-      const city = (tx.city || '').toLowerCase();
-      const payerName = (members.find((m) => m.id === tx.payerId)?.name || '').toLowerCase();
-      const tags = (tx.tags || []).join(' ').toLowerCase();
-      const payName = (tx.paymentItemName || '').toLowerCase();
-      return notes.includes(kw) || cat.includes(kw) || city.includes(kw) || payerName.includes(kw) || tags.includes(kw) || payName.includes(kw);
+      const searchParts = [];
+
+      // 品項與備註
+      if (tx.notes) searchParts.push(tx.notes);
+
+      // 分類 (英文 ID + 中文名稱)
+      if (tx.category) {
+        searchParts.push(tx.category);
+        const cat = CATEGORIES[tx.category];
+        if (cat) searchParts.push(cat.label, cat.icon);
+      }
+
+      // 城市
+      if (tx.city) searchParts.push(tx.city);
+
+      // 金額 (原幣金額、無小數金額、含千分位、折算台幣金額)
+      if (tx.amount !== undefined && tx.amount !== null) {
+        searchParts.push(String(tx.amount));
+        searchParts.push(Number(tx.amount).toLocaleString());
+      }
+      const twdAmt = Math.round(toBaseAmount(tx, currentTrip?.baseCurrency || 'TWD'));
+      searchParts.push(String(twdAmt), twdAmt.toLocaleString(), `nt$${twdAmt}`, `nt$${twdAmt.toLocaleString()}`);
+
+      // 幣別
+      if (tx.currency) {
+        searchParts.push(tx.currency);
+        if (tx.currency === 'JPY') searchParts.push('日圓', '日幣', '日元', '¥');
+        if (tx.currency === 'TWD') searchParts.push('台幣', '新台幣', 'nt$');
+      }
+
+      // 實際付款人 (名稱 + 角色身分)
+      const payer = allMembers.find((m) => m.id === tx.payerId || m.memberId === tx.payerId || m.uid === tx.payerId);
+      if (payer) {
+        searchParts.push(payer.name, payer.role || '');
+        if (payer.role === '我' || payer.name?.includes('爸爸')) searchParts.push('爸爸', '我');
+        if (payer.role === '太太' || payer.name?.includes('媽媽')) searchParts.push('媽媽', '太太');
+      }
+
+      // 受用人 / 這筆錢花在誰身上
+      const bIds = tx.beneficiaryIds || ['all'];
+      if (bIds.includes('all')) {
+        searchParts.push('全家', '所有人', '大家');
+      } else {
+        bIds.forEach((bId) => {
+          const bm = allMembers.find((m) => m.id === bId || m.memberId === bId);
+          if (bm) {
+            searchParts.push(bm.name, bm.role || '');
+            if (bm.role === '我' || bm.name?.includes('爸爸')) searchParts.push('爸爸');
+            if (bm.role === '太太' || bm.name?.includes('媽媽')) searchParts.push('媽媽');
+          }
+        });
+      }
+
+      // 支付方式與卡片名稱 (例如 Suica, 西瓜卡, 現金, 信用卡)
+      const payItem = paymentItems.find((p) => p.id === tx.paymentItemId);
+      if (tx.paymentItemName) searchParts.push(tx.paymentItemName);
+      if (payItem) searchParts.push(payItem.name, payItem.note || '');
+      if (tx.paymentMethod) {
+        searchParts.push(tx.paymentMethod);
+        const pmCat = PAYMENT_CATEGORIES[tx.paymentMethod];
+        if (pmCat) searchParts.push(pmCat.label);
+      }
+
+      // 常用標籤
+      if (Array.isArray(tx.tags)) {
+        searchParts.push(...tx.tags);
+      }
+
+      // 日期與時間
+      if (tx.datetime) {
+        searchParts.push(tx.datetime.slice(0, 10));
+        searchParts.push(tx.datetime.slice(5, 10));
+      }
+
+      const combinedText = searchParts.join(' ').toLowerCase();
+
+      // 多關鍵字分詞匹配：輸入的所有字詞都必須存在
+      return rawTokens.every((token) => combinedText.includes(token));
     });
   }
 
@@ -2884,19 +2959,26 @@ function openAddPaymentItemModal() {
   if (el.btnTabBeneficiary) el.btnTabBeneficiary.onclick = () => switchChartTab('beneficiary');
   if (el.btnTabMember) el.btnTabMember.onclick = () => switchChartTab('payer');
 
-  // 🔍 時間軸搜尋輸入框與清除按鈕監聽 (分攤 App 體驗)
+  // 🔍 時間軸搜尋輸入框與清除按鈕監聽 (全方位即時模糊搜尋)
   if (el.timelineSearchInput) {
-    el.timelineSearchInput.oninput = (e) => {
+    const handleSearchInput = (e) => {
       timelineSearchKeyword = e.target.value.trim();
       if (el.btnClearTimelineSearch) {
         el.btnClearTimelineSearch.style.display = timelineSearchKeyword ? 'flex' : 'none';
       }
       renderTimeline();
     };
+    el.timelineSearchInput.addEventListener('input', handleSearchInput);
+    el.timelineSearchInput.addEventListener('change', handleSearchInput);
+    el.timelineSearchInput.addEventListener('search', handleSearchInput);
+    el.timelineSearchInput.addEventListener('keyup', handleSearchInput);
   }
   if (el.btnClearTimelineSearch) {
     el.btnClearTimelineSearch.onclick = () => {
-      if (el.timelineSearchInput) el.timelineSearchInput.value = '';
+      if (el.timelineSearchInput) {
+        el.timelineSearchInput.value = '';
+        el.timelineSearchInput.focus();
+      }
       el.btnClearTimelineSearch.style.display = 'none';
       timelineSearchKeyword = '';
       renderTimeline();
