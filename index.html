@@ -82,14 +82,6 @@
             <span class="stat-grid-sub">錢包現金</span>
           </div>
         </div>
-
-        <!-- 皮克敏探險小隊成員 (移除多餘的帳本管理項，滿版呈現可愛成員) -->
-        <div class="hero-members-row">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 0.76rem; font-weight: 800; color: var(--forest-dark);">🌱 探險小隊：</span>
-            <div class="member-avatar-stack" id="pikminSquadMembers"></div>
-          </div>
-        </div>
       </section>
 
       <!-- 皮克敏花朵成長預算進度條 (整合至時間軸頂部) -->
@@ -107,9 +99,20 @@
         </div>
       </div>
 
-      <!-- 篩選列：城市與標籤 -->
-      <div class="filter-bar" id="timelineFilterBar">
-        <button class="filter-chip active" data-filter-city="all">全部城市</button>
+      <!-- 搜尋列與分類篩選區 (完全移植分攤 App 極致體驗) -->
+      <div class="timeline-search-filter-card" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+        <!-- 搜尋列 -->
+        <div class="timeline-search-wrap">
+          <span class="timeline-search-icon">🔍</span>
+          <input type="text" id="timelineSearchInput" class="timeline-search-input" placeholder="搜尋支出名稱、備註、付款人...">
+          <button type="button" id="btnClearTimelineSearch" class="btn-clear-search" style="display: none;" title="清除搜尋">✕</button>
+        </div>
+
+        <!-- 類別篩選膠囊 (橫向滑動) -->
+        <div class="category-filter-chips" id="timelineCategoryChips"></div>
+
+        <!-- 城市篩選膠囊 (橫向滑動) -->
+        <div class="city-filter-chips" id="timelineCityChips"></div>
       </div>
 
       <!-- 時間軸清單容器 -->

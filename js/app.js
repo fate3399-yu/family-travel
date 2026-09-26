@@ -29,6 +29,8 @@ let currentTrip = null;
 let currentTransactions = [];
 let activeTab = 'timeline';
 let selectedFilterCity = 'all';
+let selectedFilterCategory = 'all';
+let timelineSearchKeyword = '';
 let currentPhotoAttachment = null; // { file, base64 }
 let currentChartTab = 'pie'; // 'pie' | 'bar' | 'member'
 let currentPaymentCategoryFilter = 'all'; // 'all' | 'credit_card' | 'transit_card' | 'mobile_pay' | 'cash' | 'bank_transfer'
@@ -72,7 +74,11 @@ const el = {
   tabSettings: document.getElementById('tabSettings'),
 
   timelineContainer: document.getElementById('timelineContainer'),
-  timelineFilterBar: document.getElementById('timelineFilterBar'),
+  timelineSearchInput: document.getElementById('timelineSearchInput'),
+  btnClearTimelineSearch: document.getElementById('btnClearTimelineSearch'),
+  timelineCategoryChips: document.getElementById('timelineCategoryChips'),
+  timelineCityChips: document.getElementById('timelineCityChips'),
+  timelineFilterBar: document.getElementById('timelineFilterBar') || document.getElementById('timelineCityChips'),
   exchangeListContainer: document.getElementById('exchangeListContainer'),
   categoryBudgetsContainer: document.getElementById('categoryBudgetsContainer'),
   paymentMethodsContainer: document.getElementById('paymentMethodsContainer'),
@@ -939,51 +945,117 @@ function renderDashboard() {
 }
 
 /**
- * 渲染時間軸城市篩選列
+ * 渲染時間軸分類與城市篩選列 (完全移植分攤 App 視覺體驗)
  */
 function renderTimelineFilters() {
-  el.timelineFilterBar.innerHTML = '';
+  // 1. 渲染類別篩選膠囊 (橫向捲動，包含 全部類別 ＋ 各支出分類)
+  if (el.timelineCategoryChips) {
+    el.timelineCategoryChips.innerHTML = '';
 
-  const allBtn = document.createElement('button');
-  allBtn.className = `filter-chip ${selectedFilterCity === 'all' ? 'active' : ''}`;
-  allBtn.textContent = '全部城市';
-  allBtn.onclick = () => {
-    selectedFilterCity = 'all';
-    renderTimelineFilters();
-    renderTimeline();
-  };
-  el.timelineFilterBar.appendChild(allBtn);
-
-  (currentTrip.cities || []).forEach((c) => {
-    const btn = document.createElement('button');
-    btn.className = `filter-chip ${selectedFilterCity === c ? 'active' : ''}`;
-    btn.textContent = `📍 ${c}`;
-    btn.onclick = () => {
-      selectedFilterCity = c;
+    // 全部類別按鈕
+    const allCatBtn = document.createElement('button');
+    allCatBtn.type = 'button';
+    allCatBtn.className = `timeline-filter-pill ${selectedFilterCategory === 'all' ? 'active' : ''}`;
+    allCatBtn.innerHTML = `🌸 全部類別`;
+    allCatBtn.onclick = () => {
+      selectedFilterCategory = 'all';
       renderTimelineFilters();
       renderTimeline();
     };
-    el.timelineFilterBar.appendChild(btn);
-  });
+    el.timelineCategoryChips.appendChild(allCatBtn);
+
+    // 各大分類按鈕
+    Object.values(CATEGORIES).forEach((cat) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `timeline-filter-pill ${selectedFilterCategory === cat.id ? 'active' : ''}`;
+      btn.innerHTML = `<span>${cat.icon}</span> <span>${cat.label}</span>`;
+      btn.onclick = () => {
+        selectedFilterCategory = cat.id;
+        renderTimelineFilters();
+        renderTimeline();
+      };
+      el.timelineCategoryChips.appendChild(btn);
+    });
+  }
+
+  // 2. 渲染城市篩選膠囊 (若有複數城市)
+  const cityContainer = el.timelineCityChips || el.timelineFilterBar;
+  if (cityContainer) {
+    cityContainer.innerHTML = '';
+    const cities = currentTrip?.cities || [];
+
+    if (cities.length > 0) {
+      cityContainer.style.display = 'flex';
+      const allCityBtn = document.createElement('button');
+      allCityBtn.type = 'button';
+      allCityBtn.className = `timeline-filter-pill ${selectedFilterCity === 'all' ? 'active' : ''}`;
+      allCityBtn.textContent = '📍 全部城市';
+      allCityBtn.onclick = () => {
+        selectedFilterCity = 'all';
+        renderTimelineFilters();
+        renderTimeline();
+      };
+      cityContainer.appendChild(allCityBtn);
+
+      cities.forEach((c) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `timeline-filter-pill ${selectedFilterCity === c ? 'active' : ''}`;
+        btn.textContent = `📍 ${c}`;
+        btn.onclick = () => {
+          selectedFilterCity = c;
+          renderTimelineFilters();
+          renderTimeline();
+        };
+        cityContainer.appendChild(btn);
+      });
+    } else {
+      cityContainer.style.display = 'none';
+    }
+  }
 }
 
 /**
- * 渲染旅行時間軸 (Timeline)
+ * 渲染旅行時間軸 (Timeline，支援搜尋關鍵字、分類與城市篩選)
  */
 function renderTimeline() {
   el.timelineContainer.innerHTML = '';
 
   let list = currentTransactions.filter((tx) => tx.type === 'expense');
+
+  // 1. 城市篩選
   if (selectedFilterCity !== 'all') {
     list = list.filter((tx) => tx.city === selectedFilterCity);
   }
 
+  // 2. 類別篩選
+  if (selectedFilterCategory !== 'all') {
+    list = list.filter((tx) => tx.category === selectedFilterCategory);
+  }
+
+  // 3. 關鍵字搜尋過濾 (支出名稱、備註、付款人、分類、標籤、支付工具)
+  if (timelineSearchKeyword) {
+    const kw = timelineSearchKeyword.toLowerCase();
+    const members = currentTrip?.members || [];
+    list = list.filter((tx) => {
+      const notes = (tx.notes || '').toLowerCase();
+      const cat = (CATEGORIES[tx.category]?.label || tx.category || '').toLowerCase();
+      const city = (tx.city || '').toLowerCase();
+      const payerName = (members.find((m) => m.id === tx.payerId)?.name || '').toLowerCase();
+      const tags = (tx.tags || []).join(' ').toLowerCase();
+      const payName = (tx.paymentItemName || '').toLowerCase();
+      return notes.includes(kw) || cat.includes(kw) || city.includes(kw) || payerName.includes(kw) || tags.includes(kw) || payName.includes(kw);
+    });
+  }
+
   if (list.length === 0) {
+    const isFiltered = timelineSearchKeyword || selectedFilterCategory !== 'all' || selectedFilterCity !== 'all';
     el.timelineContainer.innerHTML = `
       <div style="text-align: center; padding: 40px 20px; color: var(--text-dim); background: var(--bg-card); border-radius: var(--radius-lg); border: 2px dashed var(--border);">
-        <span style="font-size: 2.8rem; display: block; margin-bottom: 8px;">🌱</span>
-        <h4 style="color: var(--pikmin-green-deep); margin-bottom: 4px;">目前尚無支出紀錄</h4>
-        <p style="font-size: 0.85rem;">跟著皮克敏一起踏出探險步伐！點擊右下角「＋ 記一筆」新增支出與回憶照片。</p>
+        <span style="font-size: 2.6rem; display: block; margin-bottom: 8px;">${isFiltered ? '🔍' : '🌱'}</span>
+        <h4 style="color: var(--pikmin-green-deep); margin-bottom: 4px;">${isFiltered ? '查無符合條件的支出紀錄' : '目前尚無支出紀錄'}</h4>
+        <p style="font-size: 0.85rem;">${isFiltered ? '請嘗試清除搜尋關鍵字或點擊「全部類別」查看完整清單。' : '跟著皮克敏一起踏出探險步伐！點擊下方「記一筆」新增支出。'}</p>
       </div>
     `;
     return;
@@ -2722,6 +2794,25 @@ function openAddPaymentItemModal() {
   if (el.btnTabPayer) el.btnTabPayer.onclick = () => switchChartTab('payer');
   if (el.btnTabBeneficiary) el.btnTabBeneficiary.onclick = () => switchChartTab('beneficiary');
   if (el.btnTabMember) el.btnTabMember.onclick = () => switchChartTab('payer');
+
+  // 🔍 時間軸搜尋輸入框與清除按鈕監聽 (分攤 App 體驗)
+  if (el.timelineSearchInput) {
+    el.timelineSearchInput.oninput = (e) => {
+      timelineSearchKeyword = e.target.value.trim();
+      if (el.btnClearTimelineSearch) {
+        el.btnClearTimelineSearch.style.display = timelineSearchKeyword ? 'flex' : 'none';
+      }
+      renderTimeline();
+    };
+  }
+  if (el.btnClearTimelineSearch) {
+    el.btnClearTimelineSearch.onclick = () => {
+      if (el.timelineSearchInput) el.timelineSearchInput.value = '';
+      el.btnClearTimelineSearch.style.display = 'none';
+      timelineSearchKeyword = '';
+      renderTimeline();
+    };
+  }
 
   // 常用標籤搜尋與新增監聽
   if (el.tagSearchInput) {
