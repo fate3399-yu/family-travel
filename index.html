@@ -303,7 +303,7 @@
         <button id="closeExpenseModalBtn" class="modal-close">&times;</button>
       </div>
 
-      <form id="expenseForm" style="display: flex; flex-direction: column; gap: 14px; padding: 4px 0 16px;">
+      <form id="expenseForm" style="display: flex; flex-direction: column; gap: 8px; padding: 2px 0 10px;">
         <input type="hidden" id="editExpenseId">
 
         <!-- 1. 預付開關 (對稱整齊雙膠囊，絕對不折行) -->
@@ -312,7 +312,7 @@
             <button type="button" class="segment-btn active" id="btnModeOnTrip">🍜 旅途消費</button>
             <button type="button" class="segment-btn" id="btnModePrepaid">✈️ 行前預付</button>
           </div>
-          <div id="prepaidHint" style="display: none; font-size: 0.74rem; color: #4A6356; text-align: center; margin-top: 4px; background: #F1F6F0; padding: 5px 12px; border-radius: 8px; border: 1px dashed #C8DEC9;">
+          <div id="prepaidHint" style="display: none; font-size: 0.72rem; color: #4A6356; text-align: center; margin-top: 3px; background: #F1F6F0; padding: 4px 10px; border-radius: 8px; border: 1px dashed #C8DEC9;">
             ✈️ 包含機票、飯店、門票等出發前預付款項
           </div>
         </div>
@@ -330,23 +330,23 @@
         </div>
 
         <!-- 3. 精巧匯率提示條 (取代突兀大綠框) -->
-        <div class="rate-hint-bar" id="liveConversionBox">
+        <div class="rate-hint-bar" id="liveConversionBox" style="padding: 4px 10px;">
           <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="font-size: 0.78rem;">💱 匯率：</span>
-            <span id="liveRateLabel" style="font-size: 0.78rem; font-weight: 700; color: var(--forest-dark);">1 JPY ≈ 0.2100 TWD</span>
+            <span style="font-size: 0.75rem;">💱 匯率：</span>
+            <span id="liveRateLabel" style="font-size: 0.75rem; font-weight: 700; color: var(--forest-dark);">1 JPY ≈ 0.2100 TWD</span>
           </div>
           <button type="button" id="btnToggleCustomRate" class="btn-text-sm" style="font-size: 0.72rem; color: var(--forest-green); background: none; border: none; font-weight: 700; cursor: pointer;">調整匯率 ▾</button>
         </div>
-        <div id="customRateRow" style="display: none; align-items: center; justify-content: space-between; padding: 6px 12px; background: #FFFFFF; border: 1px dashed #D8EAD9; border-radius: 10px; margin-top: -6px;">
-          <span style="font-size: 0.75rem; color: var(--text-muted);">自訂匯率：</span>
+        <div id="customRateRow" style="display: none; align-items: center; justify-content: space-between; padding: 4px 10px; background: #FFFFFF; border: 1px dashed #D8EAD9; border-radius: 8px; margin-top: -4px;">
+          <span style="font-size: 0.72rem; color: var(--text-muted);">自訂匯率：</span>
           <div style="display: flex; align-items: center; gap: 6px;">
-            <input type="number" id="expenseCustomRate" step="0.0001" placeholder="0.2100" style="width: 85px; padding: 4px 6px; font-size: 0.82rem; border: 1.5px solid #C8DEC9; border-radius: 6px; text-align: center;">
+            <input type="number" id="expenseCustomRate" step="0.0001" placeholder="0.2100" style="width: 80px; padding: 3px 6px; font-size: 0.8rem; border: 1.5px solid #C8DEC9; border-radius: 6px; text-align: center;">
             <button type="button" id="btnResetRate" class="btn-text-sm" style="font-size: 0.72rem; color: var(--text-muted); background: none; border: none; cursor: pointer;">重設</button>
           </div>
         </div>
 
         <!-- 4. 支出分類 與 所在城市 (2 欄等寬) -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <div class="form-group">
             <label class="form-label" for="expenseCategory">支出分類</label>
             <select id="expenseCategory" class="form-select"></select>
@@ -358,11 +358,11 @@
         </div>
 
         <!-- 5. 支付方式 / 卡片 與 付款人 (2 欄等寬) -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <label class="form-label" for="expensePaymentMethod">支付方式 / 卡片</label>
-              <button type="button" id="openAddPaymentItemBtn" class="btn-text-sm" style="font-size: 0.72rem; color: var(--forest-green); background: none; border: none; font-weight: 700; cursor: pointer; padding: 0;">＋卡片</button>
+              <button type="button" id="openAddPaymentItemBtn" class="btn-text-sm" style="font-size: 0.7rem; color: var(--forest-green); background: none; border: none; font-weight: 700; cursor: pointer; padding: 0;">＋卡片</button>
             </div>
             <select id="expensePaymentMethod" class="form-select"></select>
           </div>
@@ -373,16 +373,16 @@
         </div>
 
         <!-- 5.5 花在誰身上？(Beneficiary 花費對象，與付款人完全解耦) -->
-        <div class="form-group" style="background: #F8FAF7; padding: 10px 12px; border-radius: var(--radius-sm); border: 1.5px solid #E3ECE0;">
-          <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <div class="form-group" style="background: #F8FAF7; padding: 6px 10px; border-radius: var(--radius-sm); border: 1.5px solid #E3ECE0;">
+          <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
             <span>🎯 這筆錢花在誰身上？ (花費用途分析) *</span>
-            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: normal;">支援多選 · 不計欠款</span>
+            <span style="font-size: 0.68rem; color: var(--text-muted); font-weight: normal;">支援多選 · 不計欠款</span>
           </label>
-          <div id="beneficiaryChipsSelector" style="display: flex; flex-wrap: wrap; gap: 8px;">
-            <button type="button" class="filter-chip active" data-beneficiary="all" id="btnBeneficiaryAll" style="padding: 6px 12px; font-size: 0.8rem; font-weight: 700;">
+          <div id="beneficiaryChipsSelector" style="display: flex; flex-wrap: wrap; gap: 5px;">
+            <button type="button" class="filter-chip active" data-beneficiary="all" id="btnBeneficiaryAll" style="padding: 4px 9px; font-size: 0.76rem; font-weight: 700; border-radius: 20px;">
               👨‍👩‍👧‍👦 全家 (預設)
             </button>
-            <div id="beneficiaryMemberChips" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+            <div id="beneficiaryMemberChips" style="display: flex; flex-wrap: wrap; gap: 5px;"></div>
           </div>
         </div>
 
@@ -399,67 +399,67 @@
         </div>
 
         <!-- 7.5 行前預付專用：實際消費/入住日期 (選填) -->
-        <div class="form-group" id="prepaidExpenseDateGroup" style="display: none; background: #F8FAF7; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px dashed #C8DEC9;">
-          <label class="form-label" for="expenseStayDate" style="font-size: 0.78rem;">🏨 實際入住 / 使用日期 (選填，例如: 4/05 入住)</label>
-          <input type="date" id="expenseStayDate" class="form-input" style="font-size: 0.82rem;">
+        <div class="form-group" id="prepaidExpenseDateGroup" style="display: none; background: #F8FAF7; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px dashed #C8DEC9;">
+          <label class="form-label" for="expenseStayDate" style="font-size: 0.74rem;">🏨 實際入住 / 使用日期 (選填，例如: 4/05 入住)</label>
+          <input type="date" id="expenseStayDate" class="form-input" style="font-size: 0.78rem;">
         </div>
 
         <!-- 8. 常用標籤 (結合搜尋、自訂新增與刪除) -->
         <div class="form-group">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label class="form-label" style="margin-bottom: 0;">🏷️ 常用標籤 (搜尋、新增、點擊附加)</label>
-            <span style="font-size: 0.72rem; color: var(--text-muted);">支援自訂標籤與刪除</span>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label class="form-label" style="margin-bottom: 0;">🏷️ 常用標籤 (搜尋、新增、附加)</label>
+            <span style="font-size: 0.68rem; color: var(--text-muted);">支援自訂標籤與刪除</span>
           </div>
           <!-- 搜尋與快速新增標籤輸入列 -->
-          <div style="display: flex; gap: 6px; margin-bottom: 8px;">
-            <input type="text" id="tagSearchInput" class="form-input" placeholder="🔍 搜尋現有標籤或輸入新標籤名稱..." style="padding: 6px 10px; font-size: 0.82rem; flex: 1;">
-            <button type="button" id="btnAddCustomTagBtn" class="btn-text-sm" style="padding: 6px 12px; background: var(--forest-light); color: var(--forest-dark); border-radius: var(--radius-sm); border: 1px solid #C8DEC9; font-weight: 700; cursor: pointer; white-space: nowrap;">＋ 新增標籤</button>
+          <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+            <input type="text" id="tagSearchInput" class="form-input" placeholder="🔍 搜尋或輸入新標籤..." style="height: 32px; padding: 4px 8px; font-size: 0.78rem; flex: 1;">
+            <button type="button" id="btnAddCustomTagBtn" class="btn-text-sm" style="height: 32px; padding: 4px 10px; background: var(--forest-light); color: var(--forest-dark); border-radius: var(--radius-sm); border: 1px solid #C8DEC9; font-weight: 700; cursor: pointer; white-space: nowrap; font-size: 0.74rem;">＋ 新增</button>
           </div>
-          <div id="tagChipsSelector" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+          <div id="tagChipsSelector" style="display: flex; flex-wrap: wrap; gap: 5px;"></div>
         </div>
 
         <!-- 9. 照片上傳區 -->
         <div class="form-group">
           <label class="form-label">📷 照片 (收據發票或旅遊紀念照)</label>
-          <div id="photoUploaderBox" class="photo-uploader">
+          <div id="photoUploaderBox" class="photo-uploader" style="padding: 8px;">
             <input type="file" id="expensePhotoInput" accept="image/*" style="display: none;">
             <div id="photoPlaceholder">
-              <span style="font-size: 1.4rem;">📸</span>
-              <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">點擊拍照或上傳收據 / 旅遊照片</p>
+              <span style="font-size: 1.2rem;">📸</span>
+              <p style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">點擊拍照或上傳收據 / 旅遊照片</p>
             </div>
             <div id="photoPreviewContainer" class="photo-preview-box" style="display: none;">
               <img id="photoPreviewImg" class="photo-preview-img" alt="預覽照片">
               <div style="text-align: left; flex: 1;">
-                <div style="font-size: 0.82rem; font-weight: 700; color: var(--forest-dark);">已附加照片</div>
-                <button type="button" id="removePhotoBtn" style="color: var(--danger); background: none; border: none; font-size: 0.75rem; cursor: pointer; padding: 2px 0;">✕ 移除照片</button>
+                <div style="font-size: 0.78rem; font-weight: 700; color: var(--forest-dark);">已附加照片</div>
+                <button type="button" id="removePhotoBtn" style="color: var(--danger); background: none; border: none; font-size: 0.72rem; cursor: pointer; padding: 2px 0;">✕ 移除照片</button>
               </div>
             </div>
           </div>
         </div>
 
         <!-- 10. 信用卡實際請款回填 (折疊選填區) -->
-        <details id="actualCreditCardSection" style="background: #F8FAF7; border: 1px dashed #D5E1D3; border-radius: var(--radius-sm); padding: 8px 12px;">
-          <summary style="font-size: 0.8rem; font-weight: 700; color: var(--forest-green); cursor: pointer; outline: none; user-select: none;">
+        <details id="actualCreditCardSection" style="background: #F8FAF7; border: 1px dashed #D5E1D3; border-radius: var(--radius-sm); padding: 6px 10px;">
+          <summary style="font-size: 0.76rem; font-weight: 700; color: var(--forest-green); cursor: pointer; outline: none; user-select: none;">
             💳 信用卡實際請款台幣 (收到帳單後回填，選填) ▾
           </summary>
-          <div style="margin-top: 8px; display: flex; gap: 10px; align-items: center;">
+          <div style="margin-top: 6px; display: flex; gap: 8px; align-items: center;">
             <div class="form-group" style="flex: 1;">
-              <label class="form-label" style="font-size: 0.75rem;">實際扣款 (NT$)</label>
-              <input type="number" id="actualBilledAmount" class="form-input" placeholder="例如: 4380" step="any">
+              <label class="form-label" style="font-size: 0.72rem;">實際扣款 (NT$)</label>
+              <input type="number" id="actualBilledAmount" class="form-input" placeholder="例如: 4380" step="any" style="height: 32px; font-size: 0.78rem;">
             </div>
-            <p style="font-size: 0.72rem; color: var(--text-muted); flex: 1; line-height: 1.3;">
+            <p style="font-size: 0.68rem; color: var(--text-muted); flex: 1; line-height: 1.3;">
               帳單出來後填入，系統會自動取代預估匯率，精算回饋！
             </p>
           </div>
         </details>
 
         <!-- 11. 儲存與刪除按鈕 -->
-        <div style="display: flex; gap: 10px; margin-top: 6px;">
-          <button type="submit" class="submit-btn" id="saveExpenseBtn" style="flex: 2; height: 46px; font-size: 0.95rem; font-weight: 800; border-radius: var(--radius-pill); background: linear-gradient(135deg, #3D6B4F 0%, #20352A 100%); color: #FFFFFF; border: none; cursor: pointer; box-shadow: 0 4px 14px rgba(32, 53, 42, 0.25);">
+        <div style="display: flex; gap: 8px; margin-top: 4px;">
+          <button type="submit" class="submit-btn" id="saveExpenseBtn" style="flex: 2; height: 40px; font-size: 0.88rem; font-weight: 800; border-radius: var(--radius-pill); background: linear-gradient(135deg, #3D6B4F 0%, #20352A 100%); color: #FFFFFF; border: none; cursor: pointer; box-shadow: 0 4px 14px rgba(32, 53, 42, 0.25);">
             🌱 儲存支出紀錄
           </button>
-          <button type="button" id="deleteExpenseBtn" class="btn-danger-outline" style="display: none; flex: 1; height: 46px; font-size: 0.85rem; font-weight: 700; border-radius: var(--radius-pill); border: 1.5px solid var(--danger); color: var(--danger); background: #FFF5F5; cursor: pointer;">
-            🗑️ 刪除紀錄
+          <button type="button" id="deleteExpenseBtn" class="btn-danger-outline" style="display: none; flex: 1; height: 40px; font-size: 0.82rem; font-weight: 700; border-radius: var(--radius-pill); border: 1.5px solid var(--danger); color: var(--danger); background: #FFF5F5; cursor: pointer;">
+            🗑️ 刪除
           </button>
         </div>
       </form>

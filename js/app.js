@@ -403,9 +403,8 @@ function renderFamilyMembersUI() {
   if (!el.inviteMemberList) return;
   el.inviteMemberList.innerHTML = '';
 
-  const members = getCurrentFamilyMembers();
+  let members = getCurrentFamilyMembers();
   if (!members || members.length === 0) {
-    // 若尚未載入完成，顯示本機旅程成員
     (currentTrip?.members || []).forEach((m) => {
       renderMemberItemTag(m, m.role === '我' || m.role === '太太');
     });
@@ -414,7 +413,16 @@ function renderFamilyMembersUI() {
 
   // 區分 Account Member (大人) 與 Profile Member (小孩)
   const accountMembers = members.filter((m) => m.type === 'account');
-  const profileMembers = members.filter((m) => m.type !== 'account');
+  const hasWifeAccount = accountMembers.some((m) => m.role === '太太' || m.role === '媽媽' || m.name?.includes('Claire'));
+
+  // 若已有太太帳號綁定，過濾掉重複殘留的虛擬媽媽
+  const profileMembers = members.filter((m) => {
+    if (m.type === 'account') return false;
+    if (hasWifeAccount && (m.name?.includes('媽媽') || m.name?.includes('太太') || m.role === '媽媽' || m.role === '太太')) {
+      return false;
+    }
+    return true;
+  });
 
   // 1. 大人 (Account Member)
   const headerAdult = document.createElement('div');
@@ -453,7 +461,21 @@ function renderMemberItemTag(m, isAccount) {
 
   const info = document.createElement('div');
   const pikmin = PIKMIN_TYPES[m.pikminType] || { badge: '🌱' };
-  info.innerHTML = `<span style="font-weight: 800; font-size: 0.85rem; color: var(--forest-dark);">${m.name}</span> <span style="font-size: 0.72rem; color: var(--text-muted);">(${pikmin.badge} ${m.role || ''})</span>`;
+
+  // 親切化名稱顯示：如果是爸爸或媽媽帳號，將帳號名與身分整合為更易懂的標題
+  let displayTitle = m.name;
+  let displaySub = m.role || '';
+  if (isAccount) {
+    if (m.role === '我' || m.role === '爸爸') {
+      displayTitle = `爸爸 (${m.name})`;
+      displaySub = '爸爸';
+    } else if (m.role === '太太' || m.role === '媽媽' || m.name?.includes('Claire')) {
+      displayTitle = `媽媽 (${m.name})`;
+      displaySub = '媽媽';
+    }
+  }
+
+  info.innerHTML = `<span style="font-weight: 800; font-size: 0.85rem; color: var(--forest-dark);">${displayTitle}</span> <span style="font-size: 0.72rem; color: var(--text-muted);">(${pikmin.badge} ${displaySub})</span>`;
 
   left.appendChild(avatar);
   left.appendChild(info);
@@ -2157,6 +2179,34 @@ function addMemberRow(memberData = null) {
 }
 
 /**
+ * 🌟 智慧判定預設付款人：依據 Google 帳號身分自動對應
+ * - 爸爸登入：預設選擇「爸爸」
+ * - 媽媽登入：預設選擇「媽媽」
+ */
+function getAutoPayerIdForCurrentUser() {
+  const members = currentTrip?.members || [];
+  if (members.length === 0) return '';
+
+  const user = getCurrentUser();
+  const family = getCurrentFamily();
+
+  if (user && family) {
+    if (user.uid === family.creatorUid) {
+      // 爸爸 (家庭建立者)
+      const dad = members.find(m => m.role === '我' || m.role === '爸爸' || m.name?.includes('爸爸') || m.name?.includes('我') || (user.displayName && m.name?.includes(user.displayName)));
+      if (dad) return dad.id;
+    } else {
+      // 媽媽 / 太太 (受邀加入者)
+      const mom = members.find(m => m.role === '太太' || m.role === '媽媽' || m.name?.includes('媽媽') || m.name?.includes('太太') || (user.displayName && m.name?.includes(user.displayName)));
+      if (mom) return mom.id;
+    }
+  }
+
+  const fallback = members.find(m => m.role === '我' || m.role === '爸爸') || members[0];
+  return fallback?.id || '';
+}
+
+/**
  * 開啟支出輸入彈窗
  */
 function openAddExpenseModal() {
@@ -2186,7 +2236,6 @@ function openAddExpenseModal() {
     if (cache.category) el.expenseCategory.value = cache.category;
     if (cache.currency) el.expenseCurrency.value = cache.currency;
     if (cache.city) el.expenseCity.value = cache.city;
-    if (cache.payerId) el.expensePayer.value = cache.payerId;
     if (cache.paymentItemId) {
       renderPaymentSelectOptions(cache.paymentItemId);
     } else {
@@ -2194,6 +2243,14 @@ function openAddExpenseModal() {
     }
   } else {
     renderPaymentSelectOptions();
+  }
+
+  // 🌟 智慧預設付款人：根據當前登入身分自動判定（爸爸登入預設爸爸，媽媽登入預設媽媽）
+  const autoPayerId = getAutoPayerIdForCurrentUser();
+  if (autoPayerId) {
+    el.expensePayer.value = autoPayerId;
+  } else if (cache?.payerId) {
+    el.expensePayer.value = cache.payerId;
   }
 
   setExpenseMode(false);
@@ -2271,6 +2328,7 @@ function setExpenseMode(isPrepaid) {
 
 /**
  * 🎯 渲染「花在誰身上？」(Beneficiary) 選擇膠囊群組
+ * 🌟 核心保證：100% 依據當前帳本成員 currentTrip.members (帳本設定幾人就幾人，完美同步)
  */
 function renderBeneficiarySelector(selectedIds = ['all']) {
   if (!el.beneficiaryMemberChips) return;
@@ -2281,16 +2339,17 @@ function renderBeneficiarySelector(selectedIds = ['all']) {
     el.btnBeneficiaryAll.classList.toggle('active', isAll);
   }
 
-  // 優先使用家庭成員名單，若無則讀取旅程成員
-  const familyMembers = getCurrentFamilyMembers();
-  const members = (familyMembers && familyMembers.length > 0) ? familyMembers : (currentTrip?.members || []);
+  // 🌟 嚴格只讀取當前帳本的成員名單 (例如：爸爸、媽媽、大寶、二寶)
+  const members = (currentTrip?.members && currentTrip.members.length > 0)
+    ? currentTrip.members
+    : [{ id: 'm_me', name: '爸爸', role: '我', pikminType: 'red' }];
 
   members.forEach((m) => {
-    const mId = m.id || m.memberId;
+    const mId = m.id;
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'filter-chip';
-    chip.style.cssText = 'padding: 6px 12px; font-size: 0.8rem; font-weight: 700;';
+    chip.style.cssText = 'padding: 4px 10px; font-size: 0.76rem; font-weight: 700; border-radius: 20px;';
     chip.dataset.memberId = mId;
 
     const isSelected = !isAll && selectedIds.includes(mId);

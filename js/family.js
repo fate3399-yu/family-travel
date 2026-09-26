@@ -12,6 +12,7 @@ import {
   query,
   where,
   updateDoc,
+  deleteDoc,
   arrayUnion,
   serverTimestamp,
   onSnapshot
@@ -138,8 +139,33 @@ export async function listenToFamilyMembers(familyId) {
 
   const membersRef = collection(db, 'families', familyId, 'members');
   return onSnapshot(membersRef, (snapshot) => {
-    const list = [];
+    let list = [];
     snapshot.forEach((d) => list.push({ id: d.id, ...d.data() }));
+
+    // 🌟 自動清理重複成員：若已有太太/媽媽 Account Member，則清理殘留的虛擬「媽媽(太太)」Profile Member
+    const hasWifeAccount = list.some((m) => m.type === 'account' && (m.role === '太太' || m.role === '媽媽' || m.name?.includes('Claire')));
+    if (hasWifeAccount) {
+      const duplicateProfiles = list.filter((m) => m.type !== 'account' && (
+        m.name?.includes('媽媽') || m.name?.includes('太太') || m.role === '媽媽' || m.role === '太太'
+      ));
+
+      if (duplicateProfiles.length > 0) {
+        // 從資料庫中非同步刪除殘留虛擬成員
+        duplicateProfiles.forEach(async (dup) => {
+          try {
+            await deleteDoc(doc(db, 'families', familyId, 'members', dup.id));
+            console.log('🧹 已自動清理重複的虛擬媽媽成員:', dup.name, dup.id);
+          } catch (e) {
+            console.warn('清理重複成員失敗:', e);
+          }
+        });
+
+        // 本地過濾掉該重複成員，立即呈現正確名單
+        const dupIds = new Set(duplicateProfiles.map(d => d.id));
+        list = list.filter(m => !dupIds.has(m.id));
+      }
+    }
+
     currentFamilyMembers = list;
     notifyFamilyListeners(currentFamily, list);
   });
@@ -266,6 +292,20 @@ export async function acceptInvitation(familyId, inviteToken, joiningUser, role 
     color: '#EC4899',
     joinedAt: serverTimestamp()
   }, { merge: true });
+
+  // 3.5 清理重複的虛擬媽媽 Profile Member
+  try {
+    const memsSnap = await getDocs(collection(db, 'families', familyId, 'members'));
+    memsSnap.forEach(async (d) => {
+      const data = d.data();
+      if (data.type !== 'account' && (data.name?.includes('媽媽') || data.name?.includes('太太') || data.role === '媽媽' || data.role === '太太')) {
+        await deleteDoc(d.ref);
+        console.log('🧹 接受邀請時已清理重複成員:', data.name, d.id);
+      }
+    });
+  } catch (err) {
+    console.warn('清理重複成員失敗:', err);
+  }
 
   // 4. 更新邀請函狀態為已接受
   await updateDoc(invRef, {
