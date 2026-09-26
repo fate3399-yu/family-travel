@@ -79,14 +79,30 @@ export const PIKMIN_TYPES = {
 };
 
 /**
+ * 取得本機安全時區日期 (避免 UTC toISOString 造成台灣時區跳日前一天)
+ */
+export function getLocalIsoDate(d = new Date()) {
+  const dateObj = typeof d === 'string' ? new Date(d) : d;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
+}
+
+export function getLocalIsoDatetime(d = new Date()) {
+  const dateObj = typeof d === 'string' ? new Date(d) : d;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
+}
+
+/**
  * 建立新旅程物件範本
  */
 export function createTrip({
   id = 'trip_' + Date.now(),
+  familyId = null,
   title = '🇯🇵 東京＋關西 2027',
   coverPhoto = '',
-  startDate = new Date().toISOString().slice(0, 10),
-  endDate = new Date(Date.now() + 86400000 * 6).toISOString().slice(0, 10),
+  startDate = getLocalIsoDate(),
+  endDate = getLocalIsoDate(new Date(Date.now() + 86400000 * 6)),
   baseCurrency = 'TWD',
   targetCurrency = 'JPY',
   cities = ['東京', '京都', '大阪'],
@@ -111,6 +127,7 @@ export function createTrip({
 } = {}) {
   return {
     id,
+    familyId,
     title,
     coverPhoto,
     startDate,
@@ -134,21 +151,25 @@ export function createTrip({
 export function createTransaction({
   id = 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
   tripId,
+  familyId = null,
   type = 'expense', // 'expense' (支出) | 'exchange' (換匯)
   amount = 0,
   currency = 'JPY',
-  exchangeRate = 0.21, // 換算成 baseCurrency 的匯率
+  exchangeRate = 0.21, // 換算成 baseCurrency 的匯率 (永久固化)
   category = 'food',
   paymentMethod = 'cash',
   paymentItemId = null,
   paymentItemName = '',
   walletId = 'w_cash_jpy',
   city = '東京',
-  datetime = new Date().toISOString().slice(0, 16), // YYYY-MM-DDTHH:mm
+  cityId = null,
+  datetime = getLocalIsoDatetime(),
   notes = '',
   payerId = 'm_me',
-  beneficiaryIds = ['all'], // 'all' 或指定 member ids
+  beneficiaryIds = ['all'], // 'all' 或指定 member ids (花費對象，與付款人完全解耦)
   isPrepaid = false, // 是否為出國前預付支出（機票/飯店/預約門票等）
+  paymentDate = null,
+  expenseDate = null,
   tags = [],
   photoId = null, // 對應 IndexedDB 儲存的相片 ID
   photoThumbnail = null, // 微縮圖 (可快速渲染)
@@ -164,24 +185,43 @@ export function createTransaction({
     effectiveRate: 0.21
   }
 } = {}) {
+  const numericAmount = Number(amount) || 0;
+  const numericRate = Number(exchangeRate) || 1;
+  const dateStr = datetime ? datetime.slice(0, 10) : getLocalIsoDate();
+  const timeStr = datetime && datetime.length >= 16 ? datetime.slice(11, 16) : '12:00';
+
+  // 固化計算當筆基準幣別折算金額
+  let baseAmount = Math.round(numericAmount * numericRate);
+  if (actualBilledAmount) {
+    baseAmount = Math.round(Number(actualBilledAmount));
+  }
+
   return {
     id,
+    clientGeneratedId: id,
     tripId,
+    familyId,
     type,
-    amount: Number(amount),
+    amount: numericAmount,
     currency,
-    exchangeRate: Number(exchangeRate),
+    exchangeRate: numericRate,
+    baseAmount,
     category,
     paymentMethod,
     paymentItemId,
     paymentItemName,
     walletId,
     city,
+    cityId: cityId || city,
     datetime,
+    date: dateStr,
+    time: timeStr,
     notes,
     payerId,
-    beneficiaryIds,
-    isPrepaid,
+    beneficiaryIds: Array.isArray(beneficiaryIds) && beneficiaryIds.length > 0 ? beneficiaryIds : ['all'],
+    isPrepaid: Boolean(isPrepaid),
+    paymentDate: paymentDate || dateStr,
+    expenseDate: expenseDate || dateStr,
     tags,
     photoId,
     photoThumbnail,

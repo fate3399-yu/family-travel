@@ -21,6 +21,7 @@ import {
   setCurrentFamily,
   getCurrentFamilyMembers
 } from './family.js';
+import { saveCloudTransaction, deleteCloudTransaction, listenToTripTransactions } from './cloud-storage.js';
 
 // 全域狀態
 let currentTrip = null;
@@ -237,6 +238,12 @@ const el = {
   btnJoinGoogleLogin: document.getElementById('btnJoinGoogleLogin'),
   joinActionBox: document.getElementById('joinActionBox'),
   btnConfirmJoinFamily: document.getElementById('btnConfirmJoinFamily'),
+
+  // 🎯 花費對象與預付欄位
+  btnBeneficiaryAll: document.getElementById('btnBeneficiaryAll'),
+  beneficiaryMemberChips: document.getElementById('beneficiaryMemberChips'),
+  prepaidExpenseDateGroup: document.getElementById('prepaidExpenseDateGroup'),
+  expenseStayDate: document.getElementById('expenseStayDate'),
 
   // 👤 帳號與同步 Modal
   btnUserAuth: document.getElementById('btnUserAuth'),
@@ -470,6 +477,14 @@ async function copyInviteLink() {
 }
 
 /**
+ * 取得當前旅程基準幣別符號 (動態支援 NT$, $, €, ₩, HK$ 等)
+ */
+function getBaseCurrencySymbol() {
+  const baseCurr = currentTrip?.baseCurrency || 'TWD';
+  return CURRENCIES[baseCurr]?.symbol || baseCurr;
+}
+
+/**
  * 格式化金額千分位
  */
 function formatNumber(num) {
@@ -542,16 +557,18 @@ function updateLiveConversion() {
   const currency = el.expenseCurrency.value || (currentTrip?.targetCurrency || 'JPY');
   const rate = getEffectiveRate(currency);
 
-  if (currency === 'TWD') {
-    el.liveConvertedAmount.textContent = `NT$ ${formatNumber(amount)}`;
-    el.liveRateLabel.textContent = `本國幣別 (新台幣)`;
+  const baseSymbol = getBaseCurrencySymbol();
+  const baseCurr = currentTrip?.baseCurrency || 'TWD';
+  if (currency === baseCurr) {
+    el.liveConvertedAmount.textContent = `${baseSymbol} ${formatNumber(amount)}`;
+    el.liveRateLabel.textContent = `本國幣別 (${baseCurr})`;
     el.btnToggleCustomRate.style.display = 'none';
     el.customRateRow.style.display = 'none';
   } else {
     el.btnToggleCustomRate.style.display = 'inline-block';
-    const twd = Math.round(amount * rate);
-    el.liveConvertedAmount.textContent = `NT$ ${formatNumber(twd)}`;
-    el.liveRateLabel.textContent = `匯率：1 ${currency} ≈ ${rate.toFixed(4)} TWD`;
+    const converted = Math.round(amount * rate);
+    el.liveConvertedAmount.textContent = `${baseSymbol} ${formatNumber(converted)}`;
+    el.liveRateLabel.textContent = `匯率：1 ${currency} ≈ ${rate.toFixed(4)} ${baseCurr}`;
   }
 }
 
@@ -664,8 +681,22 @@ function loadTripData() {
     el.heroTripDates.textContent = `📅 ${currentTrip.startDate || ''} ~ ${currentTrip.endDate || ''}`;
   }
 
-  // 載入交易紀錄
+  // 載入交易紀錄 (優先讀取本機快取)
   currentTransactions = Storage.getTransactions(currentTrip.id);
+
+  // 啟動 Firestore 雲端即時監聽 (若有登入家庭)
+  const family = getCurrentFamily();
+  const familyId = family ? (family.id || family.familyId) : null;
+  if (familyId && currentTrip) {
+    listenToTripTransactions(familyId, currentTrip.id, (cloudTxList) => {
+      if (cloudTxList && cloudTxList.length > 0) {
+        Storage.saveTransactions(cloudTxList);
+        currentTransactions = cloudTxList;
+        renderDashboard();
+        renderActiveTab();
+      }
+    });
+  }
 
   // 綁定城市選項
   el.expenseCity.innerHTML = '';
@@ -755,10 +786,11 @@ function renderTripHeader() {
 function renderDashboard() {
   const summary = calculateTripSummary(currentTrip, currentTransactions);
   const targetSymbol = CURRENCIES[currentTrip.targetCurrency]?.symbol || '¥';
+  const baseSymbol = getBaseCurrencySymbol();
 
   // 預算條數值
-  if (el.budgetTotalLabel) el.budgetTotalLabel.textContent = `NT$${formatNumber(summary.totalBudget)}`;
-  if (el.budgetRemainingLabel) el.budgetRemainingLabel.textContent = `NT$${formatNumber(summary.budgetRemaining)}`;
+  if (el.budgetTotalLabel) el.budgetTotalLabel.textContent = `${baseSymbol}${formatNumber(summary.totalBudget)}`;
+  if (el.budgetRemainingLabel) el.budgetRemainingLabel.textContent = `${baseSymbol}${formatNumber(summary.budgetRemaining)}`;
   if (el.budgetPercentLabel) el.budgetPercentLabel.textContent = `${summary.budgetUsagePercent}%`;
 
   if (el.budgetProgressFill) {
@@ -793,16 +825,16 @@ function renderDashboard() {
     el.travelHeroTodayAmount.textContent = `${targetSymbol}${formatNumber(summary.todaySpentTarget)}`;
   }
   if (el.travelHeroTodayBaseConverted) {
-    el.travelHeroTodayBaseConverted.textContent = `≈ NT$${formatNumber(summary.todaySpentBase || 0)}`;
+    el.travelHeroTodayBaseConverted.textContent = `≈ ${baseSymbol}${formatNumber(summary.todaySpentBase || 0)}`;
   }
   if (el.travelHeroTotalBase) {
-    el.travelHeroTotalBase.textContent = `NT$${formatNumber(summary.totalExpenseTWD)}`;
+    el.travelHeroTotalBase.textContent = `${baseSymbol}${formatNumber(summary.totalExpenseTWD)}`;
   }
   if (el.statPrepaidSub) {
-    el.statPrepaidSub.textContent = `含行前 NT$${formatNumber(summary.prepaidExpenseTWD)} / 當地 NT$${formatNumber(summary.onTripExpenseTWD)}`;
+    el.statPrepaidSub.textContent = `含行前 ${baseSymbol}${formatNumber(summary.prepaidExpenseTWD)} / 當地 ${baseSymbol}${formatNumber(summary.onTripExpenseTWD)}`;
   }
   if (el.travelHeroBudgetRemain) {
-    el.travelHeroBudgetRemain.textContent = `NT$${formatNumber(summary.budgetRemaining)}`;
+    el.travelHeroBudgetRemain.textContent = `${baseSymbol}${formatNumber(summary.budgetRemaining)}`;
   }
   if (el.travelHeroCashRemain) {
     el.travelHeroCashRemain.textContent = `${targetSymbol}${formatNumber(summary.targetCashRemaining)}`;
@@ -1770,6 +1802,8 @@ function openAddExpenseModal() {
   }
 
   setExpenseMode(false);
+  if (el.expenseStayDate) el.expenseStayDate.value = '';
+  renderBeneficiarySelector(['all']);
   updateLiveConversion();
 
   el.expenseModal.classList.add('open');
@@ -1810,6 +1844,10 @@ function openEditExpenseModal(tx) {
   renderPaymentSelectOptions(tx.paymentItemId);
 
   setExpenseMode(!!tx.isPrepaid);
+  if (el.expenseStayDate) {
+    el.expenseStayDate.value = tx.expenseDate || '';
+  }
+  renderBeneficiarySelector(tx.beneficiaryIds || ['all']);
   updateLiveConversion();
 
   if (tx.photoThumbnail) {
@@ -1835,6 +1873,73 @@ function setExpenseMode(isPrepaid) {
   if (hint) {
     hint.style.display = isPrepaid ? 'block' : 'none';
   }
+  if (el.prepaidExpenseDateGroup) {
+    el.prepaidExpenseDateGroup.style.display = isPrepaid ? 'block' : 'none';
+  }
+}
+
+/**
+ * 🎯 渲染「花在誰身上？」(Beneficiary) 選擇膠囊群組
+ */
+function renderBeneficiarySelector(selectedIds = ['all']) {
+  if (!el.beneficiaryMemberChips) return;
+  el.beneficiaryMemberChips.innerHTML = '';
+
+  const isAll = !selectedIds || selectedIds.length === 0 || selectedIds.includes('all');
+  if (el.btnBeneficiaryAll) {
+    el.btnBeneficiaryAll.classList.toggle('active', isAll);
+  }
+
+  // 優先使用家庭成員名單，若無則讀取旅程成員
+  const familyMembers = getCurrentFamilyMembers();
+  const members = (familyMembers && familyMembers.length > 0) ? familyMembers : (currentTrip?.members || []);
+
+  members.forEach((m) => {
+    const mId = m.id || m.memberId;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'filter-chip';
+    chip.style.cssText = 'padding: 6px 12px; font-size: 0.8rem; font-weight: 700;';
+    chip.dataset.memberId = mId;
+
+    const isSelected = !isAll && selectedIds.includes(mId);
+    if (isSelected) chip.classList.add('active');
+
+    const pikmin = PIKMIN_TYPES[m.pikminType] || { badge: '🌱' };
+    chip.textContent = `${pikmin.badge} ${m.name}`;
+
+    chip.onclick = () => {
+      // 點擊成員時，取消「全家」
+      if (el.btnBeneficiaryAll) el.btnBeneficiaryAll.classList.remove('active');
+      chip.classList.toggle('active');
+
+      // 若所有成員都被取消選取，自動退回「全家」
+      const anyActive = el.beneficiaryMemberChips.querySelector('.filter-chip.active');
+      if (!anyActive && el.btnBeneficiaryAll) {
+        el.btnBeneficiaryAll.classList.add('active');
+      }
+    };
+
+    el.beneficiaryMemberChips.appendChild(chip);
+  });
+
+  if (el.btnBeneficiaryAll) {
+    el.btnBeneficiaryAll.onclick = () => {
+      el.btnBeneficiaryAll.classList.add('active');
+      el.beneficiaryMemberChips.querySelectorAll('.filter-chip.active').forEach((c) => c.classList.remove('active'));
+    };
+  }
+}
+
+function getSelectedBeneficiaries() {
+  if (el.btnBeneficiaryAll && el.btnBeneficiaryAll.classList.contains('active')) {
+    return ['all'];
+  }
+  const selected = [];
+  el.beneficiaryMemberChips?.querySelectorAll('.filter-chip.active').forEach((c) => {
+    if (c.dataset.memberId) selected.push(c.dataset.memberId);
+  });
+  return selected.length > 0 ? selected : ['all'];
 }
 
 function resetPhotoPreview() {
@@ -2337,7 +2442,13 @@ function openAddPaymentItemModal() {
     if (!txId) return;
     if (confirm('確定要刪除這筆支出紀錄嗎？')) {
       Storage.deleteTransaction(txId);
+      const family = getCurrentFamily();
+      const familyId = family ? (family.id || family.familyId) : null;
+      if (familyId && currentTrip) {
+        deleteCloudTransaction(familyId, currentTrip.id, txId).catch(() => {});
+      }
       el.expenseModal.classList.remove('open');
+      showToast('已刪除支出紀錄', '🗑️');
       loadTripData();
     }
   };
@@ -2484,20 +2595,31 @@ function openAddPaymentItemModal() {
     // 取得當前匯率
     const effectiveRate = getEffectiveRate(el.expenseCurrency.value);
 
+    // 取得花費對象 (與付款人完全解耦)
+    const beneficiaryIds = getSelectedBeneficiaries();
+    const stayDateVal = el.expenseStayDate?.value || null;
+
+    const family = getCurrentFamily();
+    const familyId = family ? (family.id || family.familyId) : null;
+
     const txData = createTransaction({
       id: isEditing ? el.editExpenseId.value : undefined,
       tripId: currentTrip.id,
+      familyId,
       type: 'expense',
       amount: parseFloat(el.expenseAmount.value),
       currency: el.expenseCurrency.value,
       exchangeRate: effectiveRate,
       category: el.expenseCategory.value,
       city: el.expenseCity.value,
+      cityId: el.expenseCity.value,
       paymentMethod: selectedPayItem.category || 'credit_card',
       paymentItemId: selectedPayItemId,
       paymentItemName: selectedPayItem.name,
       payerId: el.expensePayer.value,
+      beneficiaryIds,
       datetime: el.expenseDatetime.value,
+      expenseDate: isPrepaid && stayDateVal ? stayDateVal : undefined,
       notes: el.expenseNotes.value,
       isPrepaid,
       tags: selectedTags,
@@ -2506,8 +2628,18 @@ function openAddPaymentItemModal() {
       photoThumbnail: photoThumbnail || (isEditing ? currentTransactions.find((t) => t.id === el.editExpenseId.value)?.photoThumbnail : null)
     });
 
+    // 1. 本機快取儲存 (零延遲)
     Storage.saveTransaction(txData);
+
+    // 2. 雲端同步至 Firestore
+    if (familyId) {
+      saveCloudTransaction(familyId, currentTrip.id, txData).catch((err) => {
+        console.warn('雲端交易同步異常 (已儲存於本機):', err);
+      });
+    }
+
     el.expenseModal.classList.remove('open');
+    showToast(isEditing ? '✏️ 已更新支出紀錄' : '🌱 已儲存支出紀錄');
     loadTripData();
   };
 

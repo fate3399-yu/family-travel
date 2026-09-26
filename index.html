@@ -358,8 +358,22 @@
             <select id="expensePaymentMethod" class="form-select"></select>
           </div>
           <div class="form-group">
-            <label class="form-label" for="expensePayer">付款人</label>
+            <label class="form-label" for="expensePayer">實際付款人 (誰拿錢支付)</label>
             <select id="expensePayer" class="form-select"></select>
+          </div>
+        </div>
+
+        <!-- 5.5 花在誰身上？(Beneficiary 花費對象，與付款人完全解耦) -->
+        <div class="form-group" style="background: #F8FAF7; padding: 10px 12px; border-radius: var(--radius-sm); border: 1.5px solid #E3ECE0;">
+          <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span>🎯 這筆錢花在誰身上？ (花費用途分析) *</span>
+            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: normal;">支援多選 · 不計欠款</span>
+          </label>
+          <div id="beneficiaryChipsSelector" style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <button type="button" class="filter-chip active" data-beneficiary="all" id="btnBeneficiaryAll" style="padding: 6px 12px; font-size: 0.8rem; font-weight: 700;">
+              👨‍👩‍👧‍👦 全家 (預設)
+            </button>
+            <div id="beneficiaryMemberChips" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
           </div>
         </div>
 
@@ -371,8 +385,14 @@
 
         <!-- 7. 日期與時間 -->
         <div class="form-group">
-          <label class="form-label" for="expenseDatetime">📅 日期與時間 *</label>
+          <label class="form-label" for="expenseDatetime">📅 付款 / 消費日期與時間 *</label>
           <input type="datetime-local" id="expenseDatetime" class="form-input" required>
+        </div>
+
+        <!-- 7.5 行前預付專用：實際消費/入住日期 (選填) -->
+        <div class="form-group" id="prepaidExpenseDateGroup" style="display: none; background: #F8FAF7; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px dashed #C8DEC9;">
+          <label class="form-label" for="expenseStayDate" style="font-size: 0.78rem;">🏨 實際入住 / 使用日期 (選填，例如: 4/05 入住)</label>
+          <input type="date" id="expenseStayDate" class="form-input" style="font-size: 0.82rem;">
         </div>
 
         <!-- 8. 常用標籤 -->
