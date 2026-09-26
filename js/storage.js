@@ -2,7 +2,7 @@
  * storage.js - 本地狀態管理、種子資料與「快速記帳記憶」
  */
 
-import { createTrip, createTransaction, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS } from './models.js';
+import { createTrip, createTransaction, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS, getPresetPaymentItemsForCurrency } from './models.js';
 
 const STORAGE_KEYS = {
   TRIPS: 'ft_trips',
@@ -286,7 +286,66 @@ export const Storage = {
     this.saveTransactions(filtered);
   },
 
-  // 🌟 自訂支付方式與卡片管理 (支援多張信用卡、交通卡、行動支付)
+  // 🌟 旅程帳本專屬卡包管理 (依國家/帳本獨立隔離，維持 3~5 個最適工具)
+  getPaymentItemsForTrip(trip) {
+    if (!trip) return this.getPaymentItems();
+
+    // 若當前旅程已存有專屬卡包且非空，直接返回該帳本卡包
+    if (Array.isArray(trip.paymentItems) && trip.paymentItems.length > 0) {
+      return trip.paymentItems;
+    }
+
+    // 若尚未設定，根據該帳本的目標幣別與名稱智慧帶出預設卡包
+    const preset = getPresetPaymentItemsForCurrency(trip.targetCurrency, trip.title);
+    trip.paymentItems = preset;
+    this.updateTrip(trip);
+    return preset;
+  },
+
+  savePaymentItemsForTrip(tripId, items) {
+    const trips = this.getTrips();
+    const trip = trips.find((t) => t.id === tripId);
+    if (trip) {
+      trip.paymentItems = items;
+      this.saveTrips(trips);
+    }
+  },
+
+  addPaymentItemToTrip(tripId, item) {
+    const trips = this.getTrips();
+    const trip = trips.find((t) => t.id === tripId);
+    if (!trip) return this.addPaymentItem(item);
+
+    if (!Array.isArray(trip.paymentItems) || trip.paymentItems.length === 0) {
+      trip.paymentItems = getPresetPaymentItemsForCurrency(trip.targetCurrency, trip.title);
+    }
+
+    const newItem = {
+      id: item.id || 'pm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      name: item.name,
+      category: item.category || 'credit_card',
+      icon: item.icon || '💳',
+      note: item.note || ''
+    };
+    trip.paymentItems.push(newItem);
+    this.saveTrips(trips);
+    return newItem;
+  },
+
+  deletePaymentItemFromTrip(tripId, itemId) {
+    const trips = this.getTrips();
+    const trip = trips.find((t) => t.id === tripId);
+    if (!trip) return this.deletePaymentItem(itemId);
+
+    if (Array.isArray(trip.paymentItems)) {
+      trip.paymentItems = trip.paymentItems.filter((i) => i.id !== itemId);
+      this.saveTrips(trips);
+      return trip.paymentItems;
+    }
+    return [];
+  },
+
+  // 🌟 通用自訂支付方式與卡片管理 (相容全局設定)
   getPaymentItems() {
     const raw = localStorage.getItem(STORAGE_KEYS.PAYMENT_ITEMS);
     if (!raw) {

@@ -3,7 +3,7 @@
  * 支援多帳本管理、自訂信用卡/交通卡/行動支付工具、即時折合台幣轉換、皮克敏夥伴配置與結算報告
  */
 
-import { CURRENCIES, CATEGORIES, PAYMENT_CATEGORIES, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS, PIKMIN_TYPES, createTrip, createTransaction } from './models.js';
+import { CURRENCIES, CATEGORIES, PAYMENT_CATEGORIES, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS, PIKMIN_TYPES, createTrip, createTransaction, getPresetPaymentItemsForCurrency } from './models.js';
 import { Storage } from './storage.js';
 import { calculateTripSummary, generateFinalTripReport, toBaseAmount } from './calculations.js';
 import { savePhoto, getPhoto } from './db.js';
@@ -628,11 +628,11 @@ function updateLiveConversion() {
 }
 
 /**
- * 🌟 渲染分組式支付方式下拉選單 (支援不同信用卡、交通卡、行動支付)
+ * 🌟 渲染分組式支付方式下拉選單 (依國家/帳本專屬卡包獨立隔離，維持 3~5 個最適工具)
  */
 function renderPaymentSelectOptions(selectedItemId = null) {
   el.expensePaymentMethod.innerHTML = '';
-  const items = Storage.getPaymentItems();
+  const items = Storage.getPaymentItemsForTrip(currentTrip);
 
   // 按大類分組
   const groups = {
@@ -1178,7 +1178,7 @@ function renderTimeline() {
     groups[dateKey].push(tx);
   });
 
-  const paymentItems = Storage.getPaymentItems();
+  const paymentItems = Storage.getPaymentItemsForTrip(currentTrip);
 
   Object.keys(groups).forEach((dateKey) => {
     const dayGroup = document.createElement('div');
@@ -1900,10 +1900,45 @@ function renderActiveTab() {
 function renderSettings() {
   if (!el.settingsPaymentList) return;
 
-  // 1. 支付方式與信用卡清單 (依大類別分組分類展示，條理分明)
+  // 1. 支付方式與信用卡清單 (依當前帳本獨立卡包展示，保持極簡清爽)
   if (el.settingsPaymentList) {
     el.settingsPaymentList.innerHTML = '';
-    const paymentItems = Storage.getPaymentItems();
+    const paymentItems = Storage.getPaymentItemsForTrip(currentTrip);
+
+    // 專屬帳本卡包標題與一鍵恢復國家建議卡包按鈕
+    const tripHeaderWrap = document.createElement('div');
+    tripHeaderWrap.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: #F4FAF5; padding: 9px 12px; border-radius: 12px; border: 1.5px dashed #C8DEC9;';
+    tripHeaderWrap.innerHTML = `
+      <div>
+        <div style="font-size: 0.84rem; font-weight: 800; color: var(--forest-dark);">
+          📍「${currentTrip?.title || '當前帳本'}」專屬卡包
+        </div>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 1px;">
+          此帳本專屬共 ${paymentItems.length} 項工具 · 不干擾其他國家帳本
+        </div>
+      </div>
+      <button type="button" id="btnResetPresetPaymentItems" style="font-size: 0.72rem; color: var(--forest-green); background: #FFFFFF; border: 1.5px solid #C8DEC9; padding: 4px 10px; border-radius: 8px; cursor: pointer; font-weight: 800; white-space: nowrap;">
+        🔄 恢復建議卡包
+      </button>
+    `;
+    el.settingsPaymentList.appendChild(tripHeaderWrap);
+
+    const resetBtn = tripHeaderWrap.querySelector('#btnResetPresetPaymentItems');
+    if (resetBtn) {
+      resetBtn.onclick = () => {
+        if (confirm(`確定要將「${currentTrip.title}」的卡包恢復為「${currentTrip.targetCurrency}」國家建議卡包嗎？`)) {
+          const preset = getPresetPaymentItemsForCurrency(currentTrip.targetCurrency, currentTrip.title);
+          currentTrip.paymentItems = preset;
+          Storage.savePaymentItemsForTrip(currentTrip.id, preset);
+          const family = getCurrentFamily();
+          const familyId = family ? (family.id || family.familyId) : null;
+          if (familyId) saveCloudTrip(familyId, currentTrip).catch(console.warn);
+          renderPaymentSelectOptions();
+          renderSettings();
+          showToast(`已重設為「${currentTrip.title}」國家專屬卡包`);
+        }
+      };
+    }
 
     // 定義大類分組設定與說明
     const categoryConfigs = [
@@ -1948,14 +1983,13 @@ function renderSettings() {
 
     // 分組分類渲染
     categoryConfigs.forEach((cfg) => {
-      // 若當前有篩選特定類別且不是該類別，則跳過
       if (currentPaymentCategoryFilter !== 'all' && currentPaymentCategoryFilter !== cfg.key) {
         return;
       }
 
       const itemsInCat = paymentItems.filter((it) => (it.category || 'credit_card') === cfg.key);
       if (itemsInCat.length === 0 && currentPaymentCategoryFilter !== cfg.key) {
-        return; // 若該分類無項目且非選中分類，不顯示空區塊
+        return;
       }
 
       const groupEl = document.createElement('details');
@@ -2009,8 +2043,14 @@ function renderSettings() {
               alert('請至少保留一種支付方式喔！');
               return;
             }
-            if (confirm(`確定要刪除「${item.name}」嗎？`)) {
-              Storage.deletePaymentItem(item.id);
+            if (confirm(`確定要從此帳本移除「${item.name}」嗎？`)) {
+              Storage.deletePaymentItemFromTrip(currentTrip.id, item.id);
+              const family = getCurrentFamily();
+              const familyId = family ? (family.id || family.familyId) : null;
+              if (familyId) {
+                const updatedTrip = Storage.getTrips().find((t) => t.id === currentTrip.id);
+                if (updatedTrip) saveCloudTrip(familyId, updatedTrip).catch(console.warn);
+              }
               renderPaymentSelectOptions();
               renderSettings();
             }
@@ -2836,10 +2876,14 @@ function bindEvents() {
   };
 
 /**
- * 開啟新增支付工具 Modal
+ * 開啟新增支付工具 Modal (專屬於當前帳本)
  */
 function openAddPaymentItemModal() {
   if (el.paymentItemForm) el.paymentItemForm.reset();
+  const titleEl = el.paymentItemModal?.querySelector('.modal-title');
+  if (titleEl) {
+    titleEl.textContent = `💳 為「${currentTrip?.title || '當前帳本'}」新增卡片`;
+  }
   if (el.paymentItemModal) el.paymentItemModal.classList.add('open');
   setTimeout(() => {
     if (el.newPaymentName) el.newPaymentName.focus();
@@ -2858,15 +2902,26 @@ function openAddPaymentItemModal() {
     const note = el.newPaymentNote.value.trim();
     const icon = PAYMENT_CATEGORIES[cat]?.icon || '💳';
 
-    const newItem = Storage.addPaymentItem({
+    // 🌟 新增至當前帳本專屬卡包 (不影響其他國家帳本)
+    const newItem = Storage.addPaymentItemToTrip(currentTrip.id, {
       name,
       category: cat,
       icon,
       note
     });
 
+    // 雲端同步更新該旅程
+    const family = getCurrentFamily();
+    const familyId = family ? (family.id || family.familyId) : null;
+    if (familyId) {
+      const updatedTrip = Storage.getTrips().find((t) => t.id === currentTrip.id);
+      if (updatedTrip) saveCloudTrip(familyId, updatedTrip).catch(console.warn);
+    }
+
     el.paymentItemModal.classList.remove('open');
     renderPaymentSelectOptions(newItem.id);
+    if (activeTab === 'settings') renderSettings();
+    showToast(`💳 已將「${name}」加入「${currentTrip.title}」專屬卡包`);
   };
 
   // 旅程表單送出
@@ -2894,6 +2949,7 @@ function openAddPaymentItemModal() {
       });
     });
 
+    const existingTrip = isEdit ? Storage.getTrips().find((t) => t.id === el.editTripId.value) : null;
     const tripData = createTrip({
       id: isEdit ? el.editTripId.value : undefined,
       title: el.tripTitleInput.value.trim(),
@@ -2903,7 +2959,8 @@ function openAddPaymentItemModal() {
       endDate: el.tripEndDateInput.value,
       cities,
       totalBudget: parseFloat(el.tripBudgetInput.value) || 100000,
-      members
+      members,
+      paymentItems: existingTrip?.paymentItems || null
     });
 
     if (isEdit) {
@@ -3190,8 +3247,8 @@ function openAddPaymentItemModal() {
       photoThumbnail = photoResult.thumbnail;
     }
 
-    // 取得選中的具體支付工具 / 卡片
-    const paymentItems = Storage.getPaymentItems();
+    // 取得選中的具體支付工具 / 卡片 (依當前帳本卡包)
+    const paymentItems = Storage.getPaymentItemsForTrip(currentTrip);
     const selectedPayItemId = el.expensePaymentMethod.value;
     const selectedPayItem = paymentItems.find((p) => p.id === selectedPayItemId) || {
       category: 'credit_card',

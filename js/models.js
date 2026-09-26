@@ -60,6 +60,65 @@ export const DEFAULT_PAYMENT_ITEMS = [
   { id: 'pm_bank_transfer', name: '網銀轉帳', category: 'bank_transfer', icon: '🏦', note: '機票住宿行前轉帳' }
 ];
 
+/**
+ * 🌟 依據國家／目標幣別取得預設精選卡包 (3~4 項最常用工具，保持極簡清爽)
+ */
+export function getPresetPaymentItemsForCurrency(currency = 'JPY', title = '') {
+  const c = (currency || 'JPY').toUpperCase();
+  const lowerTitle = (title || '').toLowerCase();
+
+  if (c === 'JPY' || lowerTitle.includes('日本') || lowerTitle.includes('東京') || lowerTitle.includes('沖繩') || lowerTitle.includes('大阪') || lowerTitle.includes('京都')) {
+    return [
+      { id: 'pm_jpy_cash', name: '日圓現金', category: 'cash', icon: '💴', note: '日本實體現金' },
+      { id: 'pm_jpy_suica', name: 'Suica (西瓜卡)', category: 'transit_card', icon: '🐧', note: '地鐵、超商快速感應' },
+      { id: 'pm_jpy_card', name: '日本回饋卡 (富邦J/熊本熊)', category: 'credit_card', icon: '💳', note: '實體刷卡與免手續費' },
+      { id: 'pm_jpy_paypay', name: 'PayPay (街口/全支付)', category: 'mobile_pay', icon: '📱', note: '掃碼行動支付' }
+    ];
+  }
+
+  if (c === 'THB' || lowerTitle.includes('泰國') || lowerTitle.includes('曼谷') || lowerTitle.includes('清邁')) {
+    return [
+      { id: 'pm_thb_cash', name: '泰銖現金', category: 'cash', icon: '💵', note: '夜市與實體現金' },
+      { id: 'pm_thb_rabbit', name: '兔子卡 (Rabbit Card)', category: 'transit_card', icon: '🐰', note: '曼谷 BTS 空鐵票卡' },
+      { id: 'pm_thb_card', name: '海外高回饋信用卡', category: 'credit_card', icon: '💳', note: 'Grab 叫車與商場消費' },
+      { id: 'pm_thb_promptpay', name: 'PromptPay 掃碼支付', category: 'mobile_pay', icon: '📲', note: '泰國 QR 掃碼' }
+    ];
+  }
+
+  if (c === 'KRW' || lowerTitle.includes('韓國') || lowerTitle.includes('首爾') || lowerTitle.includes('釜山')) {
+    return [
+      { id: 'pm_krw_cash', name: '韓元現金', category: 'cash', icon: '💵', note: '當地實體現金' },
+      { id: 'pm_krw_transit', name: 'WOWPASS / T-money', category: 'transit_card', icon: '🚇', note: '地鐵與換匯卡' },
+      { id: 'pm_krw_card', name: '海外回饋信用卡', category: 'credit_card', icon: '💳', note: '免稅店與一般消費' }
+    ];
+  }
+
+  if (c === 'EUR' || lowerTitle.includes('歐') || lowerTitle.includes('法') || lowerTitle.includes('義') || lowerTitle.includes('德')) {
+    return [
+      { id: 'pm_eur_cash', name: '歐元現金', category: 'cash', icon: '💶', note: '零錢與小費' },
+      { id: 'pm_eur_card', name: '海外晶片信用卡', category: 'credit_card', icon: '💳', note: '感應與實體刷卡' },
+      { id: 'pm_eur_applepay', name: 'Apple Pay / 行動支付', category: 'mobile_pay', icon: '🍎', note: '手機快速感應' },
+      { id: 'pm_eur_transfer', name: '訂房/機票行前轉帳', category: 'bank_transfer', icon: '🏦', note: '行前付清' }
+    ];
+  }
+
+  if (c === 'USD' || lowerTitle.includes('美')) {
+    return [
+      { id: 'pm_usd_cash', name: '美金現金', category: 'cash', icon: '💵', note: '小費與現金' },
+      { id: 'pm_usd_card', name: '海外實體信用卡', category: 'credit_card', icon: '💳', note: '主要刷卡工具' },
+      { id: 'pm_usd_applepay', name: 'Apple Pay', category: 'mobile_pay', icon: '🍎', note: '感應支付' }
+    ];
+  }
+
+  // 通用預設 (新台幣或其他國家)
+  return [
+    { id: 'pm_def_cash', name: `${currency} 現金`, category: 'cash', icon: '💵', note: '當地現金支付' },
+    { id: 'pm_def_card', name: '海外刷卡信用卡', category: 'credit_card', icon: '💳', note: '主要消費卡片' },
+    { id: 'pm_def_transit', name: '當地交通卡', category: 'transit_card', icon: '🎫', note: '大眾運輸卡' },
+    { id: 'pm_def_mobile', name: '行動支付 / Apple Pay', category: 'mobile_pay', icon: '📲', note: '手機感應支付' }
+  ];
+}
+
 // 相容舊版常數
 export const PAYMENT_METHODS = PAYMENT_CATEGORIES;
 
@@ -123,8 +182,13 @@ export function createTrip({
   wallets = [
     { id: 'w_cash_target', name: '外幣現金錢包', currency: 'JPY', type: 'cash', balance: 0 },
     { id: 'w_cash_twd', name: '台幣現金錢包', currency: 'TWD', type: 'cash', balance: 0 }
-  ]
+  ],
+  paymentItems = null
 } = {}) {
+  const resolvedPaymentItems = (Array.isArray(paymentItems) && paymentItems.length > 0)
+    ? paymentItems
+    : getPresetPaymentItemsForCurrency(targetCurrency, title);
+
   return {
     id,
     familyId,
@@ -139,6 +203,7 @@ export function createTrip({
     categoryBudgets,
     members,
     wallets,
+    paymentItems: resolvedPaymentItems,
     createdAt: Date.now(),
     isArchived: false,
     reportData: null // 旅程結束時鎖定的結算報表
