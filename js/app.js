@@ -9,6 +9,18 @@ import { calculateTripSummary, generateFinalTripReport, toBaseAmount } from './c
 import { savePhoto, getPhoto } from './db.js';
 import { generateQRCodeSVG } from './qrcode.js';
 import { initAuth, loginWithGoogle, logoutUser, getCurrentUser } from './auth.js';
+import {
+  getUserFamilies,
+  createFamily,
+  addProfileMember,
+  createInvitation,
+  fetchInvitation,
+  acceptInvitation,
+  listenToFamilyMembers,
+  getCurrentFamily,
+  setCurrentFamily,
+  getCurrentFamilyMembers
+} from './family.js';
 
 // 全域狀態
 let currentTrip = null;
@@ -201,6 +213,31 @@ const el = {
   inviteQrSvgWrapper: document.getElementById('inviteQrSvgWrapper'),
   inviteMemberList: document.getElementById('inviteMemberList'),
 
+  // 🏡 家庭管理相關元素
+  familyNotCreatedBox: document.getElementById('familyNotCreatedBox'),
+  familyCreatedBox: document.getElementById('familyCreatedBox'),
+  newFamilyNameInput: document.getElementById('newFamilyNameInput'),
+  btnCreateFamilySubmit: document.getElementById('btnCreateFamilySubmit'),
+  currentFamilyTitle: document.getElementById('currentFamilyTitle'),
+  familySyncStatus: document.getElementById('familySyncStatus'),
+  btnRegenerateInvite: document.getElementById('btnRegenerateInvite'),
+  btnAddKidMemberBtn: document.getElementById('btnAddKidMemberBtn'),
+  addKidFormRow: document.getElementById('addKidFormRow'),
+  kidNameInput: document.getElementById('kidNameInput'),
+  kidPikminSelect: document.getElementById('kidPikminSelect'),
+  btnSaveKidMember: document.getElementById('btnSaveKidMember'),
+  btnCancelKidMember: document.getElementById('btnCancelKidMember'),
+
+  // 💌 接受家庭邀請 Modal
+  joinFamilyModal: document.getElementById('joinFamilyModal'),
+  closeJoinFamilyModalBtn: document.getElementById('closeJoinFamilyModalBtn'),
+  joinFamilyTitle: document.getElementById('joinFamilyTitle'),
+  joinFamilyDesc: document.getElementById('joinFamilyDesc'),
+  joinAuthPromptBox: document.getElementById('joinAuthPromptBox'),
+  btnJoinGoogleLogin: document.getElementById('btnJoinGoogleLogin'),
+  joinActionBox: document.getElementById('joinActionBox'),
+  btnConfirmJoinFamily: document.getElementById('btnConfirmJoinFamily'),
+
   // 👤 帳號與同步 Modal
   btnUserAuth: document.getElementById('btnUserAuth'),
   userAuthIcon: document.getElementById('userAuthIcon'),
@@ -268,38 +305,134 @@ function handlePwaInstall() {
 }
 
 /**
- * 開啟邀請旅伴視窗 (產生專屬邀請連結與 QR Code)
+ * 開啟邀請旅伴與家庭成員管理視窗 (真正的安全邀請 Token + QR Code)
  */
-function openInviteModal() {
-  if (!currentTrip) return;
-  if (el.inviteTripPrompt) {
-    el.inviteTripPrompt.textContent = `邀請朋友一起加入【${currentTrip.title}】探險記帳！`;
+async function openInviteModal() {
+  const user = getCurrentUser();
+  const family = getCurrentFamily();
+
+  if (!user) {
+    showToast('請先登入 Google 帳號以啟用家庭共享邀請', '🌱');
+    openAccountModal();
+    return;
   }
-  const inviteUrl = window.location.href.split('?')[0] + `?trip=${encodeURIComponent(currentTrip.id)}`;
-  if (el.inviteLinkInput) {
-    el.inviteLinkInput.value = inviteUrl;
-  }
-  // 生成高精準離線 QR Code SVG
-  if (el.inviteQrSvgWrapper) {
-    try {
-      el.inviteQrSvgWrapper.innerHTML = generateQRCodeSVG(inviteUrl, 180);
-    } catch (err) {
-      console.warn('QR Code generation fallback:', err);
+
+  if (!family) {
+    // 尚未建立家庭，引導建立
+    if (el.familyNotCreatedBox) el.familyNotCreatedBox.style.display = 'block';
+    if (el.familyCreatedBox) el.familyCreatedBox.style.display = 'none';
+    if (el.newFamilyNameInput) {
+      el.newFamilyNameInput.value = `${user.displayName || 'Wilson'} 家庭`;
     }
+  } else {
+    // 已有家庭
+    if (el.familyNotCreatedBox) el.familyNotCreatedBox.style.display = 'none';
+    if (el.familyCreatedBox) el.familyCreatedBox.style.display = 'block';
+    if (el.currentFamilyTitle) el.currentFamilyTitle.textContent = family.name || '家庭帳本';
+
+    // 產生或刷新專屬邀請連結
+    await refreshInviteLink(family.id || family.familyId);
+    renderFamilyMembersUI();
   }
-  // 渲染成員名單
-  if (el.inviteMemberList) {
-    el.inviteMemberList.innerHTML = '';
-    (currentTrip.members || []).forEach((m) => {
-      const tag = document.createElement('span');
-      tag.className = 'city-chip';
-      tag.style.margin = '2px';
-      const pikmin = PIKMIN_TYPES[m.pikminType] || { badge: '🌱' };
-      tag.textContent = `${pikmin.badge} ${m.name} (${m.role || '夥伴'})`;
-      el.inviteMemberList.appendChild(tag);
-    });
-  }
+
   if (el.inviteModal) el.inviteModal.classList.add('open');
+}
+
+let activeInviteToken = null;
+
+async function refreshInviteLink(familyId) {
+  const user = getCurrentUser();
+  if (!user || !familyId) return;
+
+  try {
+    const { inviteUrl, inviteToken } = await createInvitation(familyId, user, '太太');
+    activeInviteToken = inviteToken;
+    if (el.inviteLinkInput) {
+      el.inviteLinkInput.value = inviteUrl;
+    }
+    if (el.inviteQrSvgWrapper) {
+      try {
+        el.inviteQrSvgWrapper.innerHTML = generateQRCodeSVG(inviteUrl, 180);
+      } catch (err) {
+        console.warn('QR Code SVG error:', err);
+      }
+    }
+  } catch (err) {
+    console.error('產生邀請失敗:', err);
+    showToast('產生邀請失敗: ' + err.message, '⚠️');
+  }
+}
+
+/**
+ * 渲染家庭成員分組名單
+ */
+function renderFamilyMembersUI() {
+  if (!el.inviteMemberList) return;
+  el.inviteMemberList.innerHTML = '';
+
+  const members = getCurrentFamilyMembers();
+  if (!members || members.length === 0) {
+    // 若尚未載入完成，顯示本機旅程成員
+    (currentTrip?.members || []).forEach((m) => {
+      renderMemberItemTag(m, m.role === '我' || m.role === '太太');
+    });
+    return;
+  }
+
+  // 區分 Account Member (大人) 與 Profile Member (小孩)
+  const accountMembers = members.filter((m) => m.type === 'account');
+  const profileMembers = members.filter((m) => m.type !== 'account');
+
+  // 1. 大人 (Account Member)
+  const headerAdult = document.createElement('div');
+  headerAdult.style.cssText = 'font-size: 0.76rem; font-weight: 800; color: var(--forest-green); margin: 6px 0 2px;';
+  headerAdult.textContent = '🟢 登入帳號成員 (可跨手機同步記帳)：';
+  el.inviteMemberList.appendChild(headerAdult);
+
+  accountMembers.forEach((m) => renderMemberItemTag(m, true));
+
+  // 2. 小孩 (Profile Member)
+  const headerKids = document.createElement('div');
+  headerKids.style.cssText = 'font-size: 0.76rem; font-weight: 800; color: #D97706; margin: 10px 0 2px;';
+  headerKids.textContent = '👶 小孩與家庭成員 (花費對象，免登入帳號)：';
+  el.inviteMemberList.appendChild(headerKids);
+
+  if (profileMembers.length === 0) {
+    const emptyHint = document.createElement('div');
+    emptyHint.style.cssText = 'font-size: 0.75rem; color: var(--text-muted); padding: 4px 0;';
+    emptyHint.textContent = '尚無小孩成員，可點擊上方「＋新增小孩成員」加入。';
+    el.inviteMemberList.appendChild(emptyHint);
+  } else {
+    profileMembers.forEach((m) => renderMemberItemTag(m, false));
+  }
+}
+
+function renderMemberItemTag(m, isAccount) {
+  const item = document.createElement('div');
+  item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: #FFFFFF; border: 1px solid #E3ECE0; padding: 6px 10px; border-radius: 8px;';
+
+  const left = document.createElement('div');
+  left.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+
+  const avatar = document.createElement('span');
+  avatar.style.fontSize = '1.2rem';
+  avatar.textContent = m.avatar && m.avatar.startsWith('http') ? '👤' : (m.avatar || (isAccount ? '👨‍💼' : '👦'));
+
+  const info = document.createElement('div');
+  const pikmin = PIKMIN_TYPES[m.pikminType] || { badge: '🌱' };
+  info.innerHTML = `<span style="font-weight: 800; font-size: 0.85rem; color: var(--forest-dark);">${m.name}</span> <span style="font-size: 0.72rem; color: var(--text-muted);">(${pikmin.badge} ${m.role || ''})</span>`;
+
+  left.appendChild(avatar);
+  left.appendChild(info);
+
+  const badge = document.createElement('span');
+  badge.className = isAccount ? 'status-pill active' : 'status-pill';
+  badge.style.fontSize = '0.68rem';
+  badge.textContent = isAccount ? '已綁定帳號' : '家庭小孩';
+
+  item.appendChild(left);
+  item.appendChild(badge);
+  el.inviteMemberList.appendChild(item);
 }
 
 /**
@@ -1868,6 +2001,138 @@ function bindEvents() {
     };
   }
 
+  // 🏡 家庭建立與成員管理按鈕
+  if (el.btnCreateFamilySubmit) {
+    el.btnCreateFamilySubmit.onclick = async () => {
+      const user = getCurrentUser();
+      if (!user) {
+        showToast('請先登入 Google 帳號', '⚠️');
+        return;
+      }
+      const name = el.newFamilyNameInput?.value?.trim() || `${user.displayName || 'Wilson'} 家庭`;
+      try {
+        showToast('正在建立家庭帳本...', '🏡');
+        const family = await createFamily({
+          name,
+          creatorUser: user,
+          initialKids: ['大寶', '二寶']
+        });
+        setCurrentFamily(family);
+        showToast(`🎉 成功建立【${family.name}】！`, '🏡');
+        openInviteModal();
+      } catch (err) {
+        console.error('建立家庭失敗:', err);
+        showToast('建立失敗: ' + err.message, '⚠️');
+      }
+    };
+  }
+
+  if (el.btnRegenerateInvite) {
+    el.btnRegenerateInvite.onclick = async () => {
+      const family = getCurrentFamily();
+      if (family) {
+        showToast('正在產生新邀請碼...', '↻');
+        await refreshInviteLink(family.id || family.familyId);
+        showToast('已產生新邀請連結與 QR Code', '✨');
+      }
+    };
+  }
+
+  if (el.btnAddKidMemberBtn) {
+    el.btnAddKidMemberBtn.onclick = () => {
+      if (el.addKidFormRow) {
+        el.addKidFormRow.style.display = el.addKidFormRow.style.display === 'none' ? 'block' : 'none';
+        if (el.kidNameInput) el.kidNameInput.focus();
+      }
+    };
+  }
+
+  if (el.btnCancelKidMember) {
+    el.btnCancelKidMember.onclick = () => {
+      if (el.addKidFormRow) el.addKidFormRow.style.display = 'none';
+    };
+  }
+
+  if (el.btnSaveKidMember) {
+    el.btnSaveKidMember.onclick = async () => {
+      const family = getCurrentFamily();
+      if (!family) return;
+      const name = el.kidNameInput?.value?.trim();
+      if (!name) {
+        showToast('請輸入小孩姓名', '⚠️');
+        return;
+      }
+      const pikmin = el.kidPikminSelect?.value || 'yellow';
+      try {
+        showToast('正在新增小孩成員...', '👶');
+        await addProfileMember(family.id || family.familyId, {
+          name,
+          role: '小孩',
+          avatar: pikmin === 'pink' ? '👧' : '👦',
+          pikminType: pikmin
+        });
+        showToast(`已新增小孩成員：${name}`, '✨');
+        if (el.kidNameInput) el.kidNameInput.value = '';
+        if (el.addKidFormRow) el.addKidFormRow.style.display = 'none';
+      } catch (e) {
+        showToast('新增失敗: ' + e.message, '⚠️');
+      }
+    };
+  }
+
+  // 💌 接受邀請視窗事件
+  if (el.closeJoinFamilyModalBtn) {
+    el.closeJoinFamilyModalBtn.onclick = () => {
+      if (el.joinFamilyModal) el.joinFamilyModal.classList.remove('open');
+    };
+  }
+
+  if (el.btnJoinGoogleLogin) {
+    el.btnJoinGoogleLogin.onclick = async () => {
+      try {
+        const user = await loginWithGoogle();
+        if (user) {
+          if (el.joinAuthPromptBox) el.joinAuthPromptBox.style.display = 'none';
+          if (el.joinActionBox) el.joinActionBox.style.display = 'block';
+          showToast(`已登入: ${user.displayName}，請點擊確認加入`, '🌱');
+        }
+      } catch (e) {
+        showToast('登入失敗: ' + e.message, '⚠️');
+      }
+    };
+  }
+
+  if (el.btnConfirmJoinFamily) {
+    el.btnConfirmJoinFamily.onclick = async () => {
+      const user = getCurrentUser();
+      if (!user) {
+        if (el.joinAuthPromptBox) el.joinAuthPromptBox.style.display = 'block';
+        if (el.joinActionBox) el.joinActionBox.style.display = 'none';
+        return;
+      }
+      const pending = window.__pendingInvitation;
+      if (!pending) return;
+
+      try {
+        showToast('正在加入家庭帳本...', '🏡');
+        await acceptInvitation(pending.familyId, pending.inviteToken, user, pending.targetRole || '太太');
+        showToast(`🎉 成功加入【${pending.familyName}】！`, '🏡');
+        if (el.joinFamilyModal) el.joinFamilyModal.classList.remove('open');
+
+        // 清理網址參數
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+        window.__pendingInvitation = null;
+
+        // 重新整理家庭資料
+        refreshFamilyStatus(user);
+      } catch (err) {
+        console.error('加入家庭失敗:', err);
+        showToast('加入家庭失敗: ' + err.message, '⚠️');
+      }
+    };
+  }
+
   // 🔗 邀請旅伴 Modal 關閉與複製事件
   if (el.closeInviteModalBtn) {
     el.closeInviteModalBtn.onclick = () => {
@@ -2306,6 +2571,9 @@ function updateAuthUI(user) {
     if (el.authDisplayName) el.authDisplayName.textContent = user.displayName || '旅人';
     if (el.authEmail) el.authEmail.textContent = user.email || '';
     if (el.authUidInput) el.authUidInput.value = user.uid || '';
+
+    // 自動同步使用者所屬家庭
+    refreshFamilyStatus(user);
   } else {
     // 未登入
     if (el.userAuthIcon) el.userAuthIcon.style.display = 'inline';
@@ -2314,6 +2582,74 @@ function updateAuthUI(user) {
     if (el.authLoggedInPanel) el.authLoggedInPanel.style.display = 'none';
 
     if (el.authUidInput) el.authUidInput.value = '';
+    setCurrentFamily(null);
+  }
+}
+
+let familyUnsubscribe = null;
+
+/**
+ * 重新整理使用者的家庭資料與成員監聽
+ */
+async function refreshFamilyStatus(user) {
+  if (!user) return;
+  try {
+    const families = await getUserFamilies(user.uid);
+    if (families.length > 0) {
+      const primaryFamily = families[0];
+      setCurrentFamily(primaryFamily);
+      if (el.currentFamilyTitle) el.currentFamilyTitle.textContent = primaryFamily.name;
+
+      if (familyUnsubscribe) familyUnsubscribe();
+      familyUnsubscribe = await listenToFamilyMembers(primaryFamily.id || primaryFamily.familyId);
+    }
+  } catch (e) {
+    console.warn('載入家庭失敗:', e);
+  }
+}
+
+/**
+ * 檢查網址是否有邀請參數 (?invite=TOKEN&fid=FID)
+ */
+async function checkUrlForInvitation() {
+  const params = new URLSearchParams(window.location.search);
+  const inviteToken = params.get('invite');
+  const familyId = params.get('fid');
+
+  if (!inviteToken || !familyId) return;
+
+  try {
+    showToast('正在驗證家庭邀請...', '💌');
+    const inv = await fetchInvitation(familyId, inviteToken);
+    if (!inv) {
+      showToast('此邀請連結已失效或不存在', '⚠️');
+      return;
+    }
+
+    window.__pendingInvitation = {
+      inviteToken,
+      familyId,
+      familyName: inv.familyName || '家庭帳本',
+      inviterName: inv.inviterName || '家人',
+      targetRole: inv.targetRole || '太太'
+    };
+
+    if (el.joinFamilyTitle) {
+      el.joinFamilyTitle.textContent = `${inv.inviterName} 邀請您加入【${inv.familyName}】`;
+    }
+
+    const user = getCurrentUser();
+    if (user) {
+      if (el.joinAuthPromptBox) el.joinAuthPromptBox.style.display = 'none';
+      if (el.joinActionBox) el.joinActionBox.style.display = 'block';
+    } else {
+      if (el.joinAuthPromptBox) el.joinAuthPromptBox.style.display = 'block';
+      if (el.joinActionBox) el.joinActionBox.style.display = 'none';
+    }
+
+    if (el.joinFamilyModal) el.joinFamilyModal.classList.add('open');
+  } catch (err) {
+    console.warn('解析邀請錯誤:', err);
   }
 }
 
@@ -2327,7 +2663,19 @@ function initApp() {
   loadTripData();
 
   // 啟動 Firebase 身分驗證監聽 (不阻斷本機啟動)
-  initAuth(updateAuthUI).catch((e) => console.warn('Auth init failed:', e));
+  initAuth(async (user) => {
+    updateAuthUI(user);
+    // 檢查是否有未完成的邀請視窗狀態更新
+    if (window.__pendingInvitation && el.joinFamilyModal?.classList.contains('open')) {
+      if (user) {
+        if (el.joinAuthPromptBox) el.joinAuthPromptBox.style.display = 'none';
+        if (el.joinActionBox) el.joinActionBox.style.display = 'block';
+      }
+    }
+  }).catch((e) => console.warn('Auth init failed:', e));
+
+  // 檢查是否由邀請連結進入
+  checkUrlForInvitation();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});

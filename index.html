@@ -646,50 +646,140 @@
     </div>
   </div>
 
-  <!-- Modal 6: 🔗 旅伴名單與邀請管理視窗 -->
+  <!-- Modal 6: 🔗 家庭成員名冊與跨裝置邀請管理視窗 -->
   <div id="inviteModal" class="modal-overlay">
     <div class="modal-sheet" style="max-height: 85vh;">
       <div class="modal-header">
-        <h3 class="modal-title"><span>🔗</span> 旅伴名單與邀請管理</h3>
+        <h3 class="modal-title"><span>🏡</span> 家庭成員與跨裝置邀請</h3>
         <button id="closeInviteModalBtn" class="modal-close">&times;</button>
       </div>
 
-      <div style="padding: 6px 0 12px; text-align: center;">
-        <p style="font-size: 0.92rem; color: var(--forest-dark); font-weight: 700; margin-bottom: 14px;" id="inviteTripPrompt">
-          邀請朋友一起加入探險記帳！
-        </p>
-
-        <!-- 專屬邀請連結 -->
-        <div class="form-group" style="text-align: left; margin-bottom: 14px;">
-          <label class="form-label">專屬邀請連結</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="inviteLinkInput" class="form-input" readonly style="background: #F8FAF7; font-size: 0.8rem; font-family: monospace;">
-            <button type="button" class="btn-primary" id="btnCopyInviteLink" style="white-space: nowrap; padding: 0 16px; font-size: 0.85rem;">複製連結</button>
+      <div style="padding: 6px 0 12px;">
+        <!-- 未建立家庭提示與建立按鈕 -->
+        <div id="familyNotCreatedBox" style="text-align: center; padding: 14px 8px; display: none;">
+          <div style="font-size: 2.2rem; margin-bottom: 6px;">🌱</div>
+          <h4 style="font-size: 1.05rem; font-weight: 800; color: var(--forest-dark); margin-bottom: 6px;">
+            建立專屬家庭帳本
+          </h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px; line-height: 1.5;">
+            建立家庭後即可產生專屬安全邀請碼，<br>邀請太太登入 Google 帳號共同記帳！
+          </p>
+          <div class="form-group" style="text-align: left; margin-bottom: 12px;">
+            <label class="form-label">家庭名稱</label>
+            <input type="text" id="newFamilyNameInput" class="form-input" value="Wilson 家庭" placeholder="例如：Wilson 家庭" style="font-weight: 700;">
           </div>
+          <button type="button" id="btnCreateFamilySubmit" class="btn-primary" style="width: 100%; padding: 12px;">
+            🏡 立即建立家庭帳本
+          </button>
         </div>
 
-        <!-- 展開 QR Code -->
-        <details open style="text-align: center; margin-bottom: 14px; background: #F8FAF7; border: 1.5px solid #E3ECE0; border-radius: var(--radius-sm); padding: 10px;">
-          <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--forest-green); outline: none; user-select: none;">
-            📱 點擊展開/收合 QR Code (相機秒掃入團)
-          </summary>
-          <div id="inviteQrContainer" style="margin-top: 10px; display: flex; flex-direction: column; align-items: center;">
-            <div id="inviteQrSvgWrapper"></div>
-            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">拿出手機相機掃描即可同步開啟</div>
+        <!-- 已建立家庭內容 -->
+        <div id="familyCreatedBox">
+          <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAF7; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid #DCE7DA; margin-bottom: 12px;">
+            <div>
+              <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">當前家庭</span>
+              <div id="currentFamilyTitle" style="font-size: 1rem; font-weight: 800; color: var(--forest-dark);">Wilson 家庭</div>
+            </div>
+            <span class="status-pill active" id="familySyncStatus">🟢 雲端同步</span>
           </div>
-        </details>
 
-        <!-- 👥 當前帳本成員名單 -->
-        <div style="text-align: left; border-top: 1.5px dashed #E3ECE0; padding-top: 12px;">
-          <div style="font-size: 0.85rem; font-weight: 800; color: var(--forest-dark); margin-bottom: 8px;">
-            👥 當前探險隊員名單
+          <!-- 專屬安全邀請連結 (跨裝置認證) -->
+          <div class="form-group" style="text-align: left; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label class="form-label" style="margin-bottom: 0;">專屬邀請太太 / 家人連結</label>
+              <button type="button" id="btnRegenerateInvite" class="btn-text-sm" style="font-size: 0.72rem; color: var(--forest-green); background: none; border: none; cursor: pointer; padding: 0;">重新產生 ↻</button>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="inviteLinkInput" class="form-input" readonly style="background: #F8FAF7; font-size: 0.78rem; font-family: monospace;">
+              <button type="button" class="btn-primary" id="btnCopyInviteLink" style="white-space: nowrap; padding: 0 16px; font-size: 0.85rem;">複製連結</button>
+            </div>
+            <span style="font-size: 0.7rem; color: var(--text-muted); margin-top: 3px; display: block;">
+              太太點開此連結並登入 Google 帳號即可一鍵加入家庭！
+            </span>
           </div>
-          <div id="inviteMemberList" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+
+          <!-- 展開 QR Code -->
+          <details open style="text-align: center; margin-bottom: 14px; background: #F8FAF7; border: 1.5px solid #E3ECE0; border-radius: var(--radius-sm); padding: 10px;">
+            <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--forest-green); outline: none; user-select: none;">
+              📱 點擊展開/收合 QR Code (太太相機秒掃入團)
+            </summary>
+            <div id="inviteQrContainer" style="margin-top: 10px; display: flex; flex-direction: column; align-items: center;">
+              <div id="inviteQrSvgWrapper"></div>
+              <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 6px;">拿出太太的手機相機掃描即可同步開啟</div>
+            </div>
+          </details>
+
+          <!-- 👥 家庭成員分組名冊 -->
+          <div style="text-align: left; border-top: 1.5px dashed #E3ECE0; padding-top: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 0.85rem; font-weight: 800; color: var(--forest-dark);">
+                👥 當前家庭成員名冊
+              </div>
+              <button type="button" id="btnAddKidMemberBtn" class="btn-text-sm" style="font-size: 0.75rem; color: var(--forest-green); background: #F1F6F0; padding: 3px 8px; border-radius: 6px; border: 1px solid #DCE7DA; cursor: pointer;">
+                ＋ 新增小孩成員
+              </button>
+            </div>
+
+            <!-- 新增小孩折疊小表單 -->
+            <div id="addKidFormRow" style="display: none; background: #F8FAF7; padding: 10px; border-radius: 8px; border: 1px solid #DCE7DA; margin-bottom: 10px;">
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="kidNameInput" class="form-input" placeholder="小孩姓名 (例: 大寶)" style="flex: 2; padding: 6px 10px; font-size: 0.82rem;">
+                <select id="kidPikminSelect" class="form-select" style="flex: 1; padding: 6px 8px; font-size: 0.82rem;">
+                  <option value="blue">🔵 藍皮克敏</option>
+                  <option value="yellow">🟡 黃皮克敏</option>
+                  <option value="purple">🟣 紫皮克敏</option>
+                  <option value="pink">🌸 羽毛皮克敏</option>
+                </select>
+                <button type="button" id="btnSaveKidMember" class="btn-primary" style="padding: 6px 12px; font-size: 0.82rem; white-space: nowrap;">儲存</button>
+                <button type="button" id="btnCancelKidMember" class="btn-text-sm" style="font-size: 0.75rem; color: var(--text-muted); background: none; border: none; cursor: pointer;">取消</button>
+              </div>
+            </div>
+
+            <div id="inviteMemberList" style="display: flex; flex-direction: column; gap: 6px;"></div>
+          </div>
         </div>
 
         <button type="button" id="closeInviteDoneBtn" class="btn-primary" style="width: 100%; margin-top: 16px; padding: 10px; background: #F1F6F0; color: var(--forest-dark); border: 1px solid #DCE7DA;">
           完成關閉
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 6.5: 💌 接受家庭邀請視窗 (Join Family Modal) -->
+  <div id="joinFamilyModal" class="modal-overlay">
+    <div class="modal-sheet" style="max-height: 85vh;">
+      <div class="modal-header">
+        <h3 class="modal-title"><span>💌</span> 接受家庭邀請</h3>
+        <button id="closeJoinFamilyModalBtn" class="modal-close">&times;</button>
+      </div>
+
+      <div style="padding: 12px 6px; text-align: center;">
+        <div style="font-size: 2.4rem; margin-bottom: 8px;">🏡</div>
+        <h4 id="joinFamilyTitle" style="font-size: 1.1rem; font-weight: 800; color: var(--forest-dark); margin-bottom: 6px;">
+          邀請您加入家庭記帳！
+        </h4>
+        <p id="joinFamilyDesc" style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 18px; line-height: 1.5;">
+          接受邀請後，你們可以跨手機共同看帳與記帳，<br>所有花費皆視為家庭共同基金！
+        </p>
+
+        <!-- 未登入時引導登入 Google -->
+        <div id="joinAuthPromptBox" style="display: none; margin-bottom: 14px;">
+          <p style="font-size: 0.78rem; color: var(--forest-green); font-weight: 700; margin-bottom: 10px;">
+            請先登入 Google 帳號以完成身分綁定：
+          </p>
+          <button type="button" id="btnJoinGoogleLogin" class="btn-primary" style="width: 100%; padding: 12px; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; gap: 8px; background: #FFFFFF; color: #1F2937; border: 1.5px solid #D1D5DB; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
+            <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.15z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.27 21.36 7.35 24 12 24z"/><path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.94 0 12s.46 3.84 1.26 5.42l4.02-3.15z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.27 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/></svg>
+            <span style="font-weight: 700;">使用 Google 登入並加入</span>
+          </button>
+        </div>
+
+        <!-- 已登入時確認加入按鈕 -->
+        <div id="joinActionBox">
+          <button type="button" id="btnConfirmJoinFamily" class="btn-primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">
+            🌱 確認加入家庭
+          </button>
+        </div>
       </div>
     </div>
   </div>
