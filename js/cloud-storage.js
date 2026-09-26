@@ -67,6 +67,7 @@ export async function saveCloudTransaction(familyId, tripId, txData) {
     clientGeneratedId: txId,
     familyId,
     tripId,
+    syncStatus: navigator.onLine ? 'synced' : 'pending_upload',
     updatedAt: serverTimestamp()
   };
 
@@ -74,8 +75,20 @@ export async function saveCloudTransaction(familyId, tripId, txData) {
     payload.createdAt = serverTimestamp();
   }
 
-  await setDoc(ref, payload, { merge: true });
-  return true;
+  try {
+    if (!navigator.onLine) {
+      // 離線狀態：推入本地離線隊列
+      enqueueOfflineTransaction({ familyId, tripId, txData: payload });
+      return true;
+    }
+
+    await setDoc(ref, payload, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn('雲端寫入異常，加入離線待傳隊列:', err.message);
+    enqueueOfflineTransaction({ familyId, tripId, txData: payload });
+    return false;
+  }
 }
 
 /**
@@ -87,7 +100,91 @@ export async function deleteCloudTransaction(familyId, tripId, txId) {
     return false;
   }
 
-  const ref = doc(db, 'families', familyId, 'trips', tripId, 'transactions', txId);
-  await deleteDoc(ref);
-  return true;
+  try {
+    const ref = doc(db, 'families', familyId, 'trips', tripId, 'transactions', txId);
+    await deleteDoc(ref);
+    return true;
+  } catch (err) {
+    console.warn('雲端刪除交易異常:', err);
+    return false;
+  }
+}
+
+// ==========================================
+// 📦 離線隊列 (Offline Queue) 管理
+// ==========================================
+const STORAGE_KEY_OFFLINE_QUEUE = 'ft_offline_tx_queue';
+
+function getOfflineQueue() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY_OFFLINE_QUEUE)) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveOfflineQueue(queue) {
+  localStorage.setItem(STORAGE_KEY_OFFLINE_QUEUE, JSON.stringify(queue));
+}
+
+export function enqueueOfflineTransaction(item) {
+  const queue = getOfflineQueue();
+  const existingIdx = queue.findIndex((q) => q.txData.id === item.txData.id);
+  if (existingIdx >= 0) {
+    queue[existingIdx] = item;
+  } else {
+    queue.push(item);
+  }
+  saveOfflineQueue(queue);
+}
+
+export function getPendingOfflineCount() {
+  return getOfflineQueue().length;
+}
+
+/**
+ * 恢復連網時：自動將隊列中所有交易逐一推播至 Firestore
+ */
+export async function flushOfflineQueue(onProgress) {
+  const queue = getOfflineQueue();
+  if (queue.length === 0) return { success: true, count: 0 };
+
+  const { db, success } = await initFirebaseServices();
+  if (!success || !db) return { success: false, count: 0 };
+
+  let flushedCount = 0;
+  const remaining = [];
+
+  for (const item of queue) {
+    try {
+      const ref = doc(db, 'families', item.familyId, 'trips', item.tripId, 'transactions', item.txData.id);
+      await setDoc(ref, {
+        ...item.txData,
+        syncStatus: 'synced',
+        syncedAt: serverTimestamp()
+      }, { merge: true });
+      flushedCount++;
+      if (onProgress) onProgress(flushedCount, queue.length);
+    } catch (e) {
+      console.warn('推播離線交易失敗，保留於隊列:', e);
+      remaining.push(item);
+    }
+  }
+
+  saveOfflineQueue(remaining);
+  return { success: true, count: flushedCount, remaining: remaining.length };
+}
+
+// 監聽連網事件：恢復網路自動沖刷隊列
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    console.log('🌐 偵測到網路已恢復連線，正在自動同步離線交易...');
+    flushOfflineQueue((current, total) => {
+      console.log(`[Offline Sync] 已同步 ${current}/${total}`);
+    }).then((res) => {
+      if (res.count > 0) {
+        console.log(`🎉 成功同步 ${res.count} 筆離線交易！`);
+      }
+    });
+  });
 }

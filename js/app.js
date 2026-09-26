@@ -21,7 +21,8 @@ import {
   setCurrentFamily,
   getCurrentFamilyMembers
 } from './family.js';
-import { saveCloudTransaction, deleteCloudTransaction, listenToTripTransactions } from './cloud-storage.js';
+import { saveCloudTransaction, deleteCloudTransaction, listenToTripTransactions, getPendingOfflineCount, flushOfflineQueue } from './cloud-storage.js';
+import { checkHasLocalDataToMigrate, migrateLocalDataToCloud } from './migration.js';
 
 // 全域狀態
 let currentTrip = null;
@@ -260,6 +261,10 @@ const el = {
   authEmail: document.getElementById('authEmail'),
   authUidInput: document.getElementById('authUidInput'),
   btnCopyUid: document.getElementById('btnCopyUid'),
+  authSyncStatusPill: document.getElementById('authSyncStatusPill'),
+  offlineQueueBadge: document.getElementById('offlineQueueBadge'),
+  migrationCard: document.getElementById('migrationCard'),
+  btnStartMigration: document.getElementById('btnStartMigration'),
 
   // 浮動提示 Toast
   toast: document.getElementById('toast'),
@@ -2106,6 +2111,28 @@ function bindEvents() {
     };
   }
 
+  // 📦 本機歷史資料一鍵安全轉移 (Migration)
+  if (el.btnStartMigration) {
+    el.btnStartMigration.onclick = async () => {
+      const user = getCurrentUser();
+      const family = getCurrentFamily();
+      if (!user || !family) {
+        showToast('請先登入並確認家庭已建立', '⚠️');
+        return;
+      }
+      try {
+        showToast('🚀 正在一鍵安全備份與轉移至家庭雲端...', '📦');
+        const res = await migrateLocalDataToCloud(family.id || family.familyId, user);
+        showToast(`🎉 成功轉移 ${res.migratedTripsCount} 趟旅程與 ${res.migratedTxCount} 筆交易！本機已保留安全備份`, '✨');
+        if (el.migrationCard) el.migrationCard.style.display = 'none';
+        loadTripData();
+      } catch (err) {
+        console.error('資料遷移異常:', err);
+        showToast('轉移異常: ' + err.message, '⚠️');
+      }
+    };
+  }
+
   // 🏡 家庭建立與成員管理按鈕
   if (el.btnCreateFamilySubmit) {
     el.btnCreateFamilySubmit.onclick = async () => {
@@ -2704,6 +2731,15 @@ function updateAuthUI(user) {
     if (el.authEmail) el.authEmail.textContent = user.email || '';
     if (el.authUidInput) el.authUidInput.value = user.uid || '';
 
+    // 檢查是否有尚未轉移至雲端的本機舊資料
+    if (el.migrationCard) {
+      const hasLocalData = checkHasLocalDataToMigrate();
+      el.migrationCard.style.display = hasLocalData ? 'block' : 'none';
+    }
+
+    // 檢查離線待傳隊列筆數
+    updateOfflineQueueUI();
+
     // 自動同步使用者所屬家庭
     refreshFamilyStatus(user);
   } else {
@@ -2714,8 +2750,33 @@ function updateAuthUI(user) {
     if (el.authLoggedInPanel) el.authLoggedInPanel.style.display = 'none';
 
     if (el.authUidInput) el.authUidInput.value = '';
+    if (el.migrationCard) el.migrationCard.style.display = 'none';
     setCurrentFamily(null);
   }
+}
+
+function updateOfflineQueueUI() {
+  const pendingCount = getPendingOfflineCount();
+  if (el.offlineQueueBadge) {
+    if (pendingCount > 0) {
+      el.offlineQueueBadge.style.display = 'inline-block';
+      el.offlineQueueBadge.textContent = `🟠 待傳 ${pendingCount} 筆`;
+    } else {
+      el.offlineQueueBadge.style.display = 'none';
+    }
+  }
+}
+
+// 監聽連網與斷網事件，更新狀態標籤
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    if (el.authSyncStatusPill) el.authSyncStatusPill.textContent = '🟢 雲端同步連線中';
+    updateOfflineQueueUI();
+  });
+  window.addEventListener('offline', () => {
+    if (el.authSyncStatusPill) el.authSyncStatusPill.textContent = '🟠 目前處於離線模式';
+    updateOfflineQueueUI();
+  });
 }
 
 let familyUnsubscribe = null;

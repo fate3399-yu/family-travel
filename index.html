@@ -836,7 +836,24 @@
               <div id="authDisplayName" style="font-size: 0.98rem; font-weight: 800; color: var(--forest-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
               <div id="authEmail" style="font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
               <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
-                <span class="status-pill active" style="font-size: 0.65rem; padding: 1px 8px;">🟢 雲端同步連線中</span>
+                <span class="status-pill active" id="authSyncStatusPill" style="font-size: 0.65rem; padding: 1px 8px;">🟢 雲端同步連線中</span>
+                <span class="status-pill" id="offlineQueueBadge" style="display: none; font-size: 0.65rem; padding: 1px 8px; background: #FEF3C7; color: #B45309; border-color: #FCD34D;">🟠 待同步 0 筆</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 本機歷史資料一鍵轉移卡片 (Migration) -->
+          <div id="migrationCard" style="display: none; background: #FEF3C7; border: 1.5px solid #FCD34D; border-radius: var(--radius-sm); padding: 12px; margin-bottom: 14px;">
+            <div style="display: flex; align-items: flex-start; gap: 8px;">
+              <span style="font-size: 1.3rem;">📦</span>
+              <div style="flex: 1;">
+                <div style="font-size: 0.85rem; font-weight: 800; color: #92400E; margin-bottom: 3px;">偵測到本機有舊版旅程與交易</div>
+                <div style="font-size: 0.74rem; color: #78350F; line-height: 1.4; margin-bottom: 10px;">
+                  可將目前單機的歷史旅程、換匯與支出一鍵轉移至家庭雲端，夫妻即刻共享！系統會自動保留本地完整雙重備份。
+                </div>
+                <button type="button" id="btnStartMigration" class="btn-primary" style="width: 100%; padding: 8px; font-size: 0.82rem; background: #D97706; border: none;">
+                  🚀 一鍵安全轉移至家庭雲端
+                </button>
               </div>
             </div>
           </div>
