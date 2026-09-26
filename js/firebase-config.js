@@ -8,15 +8,15 @@ import { getAuth } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-aut
 import { getFirestore, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getStorage } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
-// 預設專案設定 (支援 localStorage 自訂覆寫)
+// 預設專案設定 (our-family-travel-7618a 專屬獨立專案)
 export const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAk_3sANn1M-0NxbMHKBIdMTy4rW5hYQr4",
-  authDomain: "my-money-tracker-a2807.firebaseapp.com",
-  projectId: "my-money-tracker-a2807",
-  storageBucket: "my-money-tracker-a2807.firebasestorage.app",
-  messagingSenderId: "299742385640",
-  appId: "1:299742385640:web:19bd6a473fc9145497405d",
-  measurementId: "G-D8S394S51Z"
+  apiKey: "AIzaSyDSW70nqoQoYzCYEf0NFZoBng6GsGXAMmg",
+  authDomain: "our-family-travel-7618a.firebaseapp.com",
+  projectId: "our-family-travel-7618a",
+  storageBucket: "our-family-travel-7618a.firebasestorage.app",
+  messagingSenderId: "800031516355",
+  appId: "1:800031516355:web:b660ed40d31208878ca476",
+  measurementId: "G-12QL82XH9W"
 };
 
 const STORAGE_KEY_CUSTOM_CONFIG = 'ft_custom_firebase_config';
