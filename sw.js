@@ -3,7 +3,7 @@
  * 支援出國無網路、飛機上、地鐵離線開啟與記帳
  */
 
-const CACHE_NAME = 'pikmin-travel-v18';
+const CACHE_NAME = 'pikmin-travel-v20';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -16,6 +16,8 @@ const ASSETS_TO_CACHE = [
   './js/storage.js',
   './js/calculations.js',
   './js/qrcode.js',
+  './js/firebase-config.js',
+  './js/auth.js',
   './js/app.js'
 ];
 
@@ -45,6 +47,12 @@ self.addEventListener('activate', (event) => {
 
 // 🌟 採用 Network-First：優先取得最新檔案，離線時自動回退快取
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  // 對於非本機且非靜態 CDN 資源（如 Firebase API / OAuth / Firestore 通道），直接網路放行
+  if (!url.origin.includes(self.location.origin) && !url.hostname.includes('gstatic.com')) {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {

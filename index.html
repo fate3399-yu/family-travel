@@ -27,6 +27,10 @@
       <button class="icon-btn pwa-install-btn" id="btnInstallPwa" title="安裝到手機桌面">📲</button>
       <button class="icon-btn" id="btnInviteMembers" title="邀請旅伴 (複製連結 / QR Code)">🔗</button>
       <button class="icon-btn" id="btnSwitchTrip" title="切換其他行程帳本">🗺️</button>
+      <button class="icon-btn user-auth-btn" id="btnUserAuth" title="Google 帳號與同步">
+        <span id="userAuthIcon">👤</span>
+        <img id="userAuthAvatar" class="header-user-avatar" style="display:none; width: 26px; height: 26px; border-radius: 50%; object-fit: cover;" alt="使用者頭像">
+      </button>
     </div>
   </header>
 
@@ -686,6 +690,71 @@
         <button type="button" id="closeInviteDoneBtn" class="btn-primary" style="width: 100%; margin-top: 16px; padding: 10px; background: #F1F6F0; color: var(--forest-dark); border: 1px solid #DCE7DA;">
           完成關閉
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 7: 👤 Google 帳號與雲端連線狀態 (Account Modal) -->
+  <div id="accountModal" class="modal-overlay">
+    <div class="modal-sheet" style="max-height: 85vh;">
+      <div class="modal-header">
+        <h3 class="modal-title"><span>👤</span> Google 帳號與同步中心</h3>
+        <button id="closeAccountModalBtn" class="modal-close">&times;</button>
+      </div>
+
+      <div style="padding: 8px 0 16px;">
+        <!-- 未登入狀態面板 -->
+        <div id="authLoggedOutPanel" style="text-align: center; padding: 12px 6px;">
+          <div style="font-size: 2.4rem; margin-bottom: 8px;">🌱</div>
+          <h4 style="font-size: 1.05rem; font-weight: 800; color: var(--forest-dark); margin-bottom: 6px;">
+            登入 Google 帳號
+          </h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px;">
+            登入後即可建立家庭專屬帳本，<br>邀請太太或跨手機即時共同記帳，旅遊資料永不遺失。
+          </p>
+          <button type="button" id="btnGoogleSignIn" class="btn-primary" style="width: 100%; padding: 12px; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; gap: 10px; background: #FFFFFF; color: #1F2937; border: 1.5px solid #D1D5DB; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
+            <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.15z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.27 21.36 7.35 24 12 24z"/><path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.94 0 12s.46 3.84 1.26 5.42l4.02-3.15z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.27 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/></svg>
+            <span style="font-weight: 700;">使用 Google 帳號登入</span>
+          </button>
+        </div>
+
+        <!-- 已登入狀態面板 -->
+        <div id="authLoggedInPanel" style="display: none;">
+          <div style="display: flex; align-items: center; gap: 14px; background: #F8FAF7; padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid #DCE7DA; margin-bottom: 14px;">
+            <img id="authProfileImg" src="" alt="頭像" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--forest-green);">
+            <div style="flex: 1; min-width: 0;">
+              <div id="authDisplayName" style="font-size: 0.98rem; font-weight: 800; color: var(--forest-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
+              <div id="authEmail" style="font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
+                <span class="status-pill active" style="font-size: 0.65rem; padding: 1px 8px;">🟢 雲端同步連線中</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- UID 與身分識別 (點擊複製) -->
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" style="font-size: 0.75rem;">您的 Firebase UID (身分識別碼)</label>
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="authUidInput" class="form-input" readonly style="font-size: 0.75rem; font-family: monospace; background: #F8FAF7;">
+              <button type="button" id="btnCopyUid" class="btn-text-sm" style="padding: 0 10px; font-size: 0.78rem; background: #F1F6F0; border-radius: 6px; border: 1px solid #DCE7DA; white-space: nowrap; cursor: pointer;">複製</button>
+            </div>
+          </div>
+
+          <button type="button" id="btnSignOut" class="btn-danger-outline" style="width: 100%; padding: 10px; font-size: 0.88rem; font-weight: 700; border-radius: var(--radius-pill); border: 1.5px solid var(--danger); color: var(--danger); background: #FFF5F5; cursor: pointer;">
+            🚪 登出帳號
+          </button>
+        </div>
+
+        <!-- 雲端服務自訂設定 (折疊區) -->
+        <details style="margin-top: 16px; border-top: 1px dashed #DCE7DA; padding-top: 10px;">
+          <summary style="font-size: 0.75rem; color: var(--text-muted); cursor: pointer; outline: none; user-select: none;">
+            ⚙️ 雲端 Firebase 設定資訊 ▾
+          </summary>
+          <div style="margin-top: 8px; font-size: 0.72rem; color: var(--text-muted); line-height: 1.5;">
+            當前專案：<code id="authCurrentProjectId" style="font-family: monospace; color: var(--forest-dark); font-weight: 700;">my-money-tracker-a2807</code><br>
+            支援離線模式：當出國無網路時自動在手機本機運作，連網時背景自動同步。
+          </div>
+        </details>
       </div>
     </div>
   </div>

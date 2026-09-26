@@ -8,6 +8,7 @@ import { Storage } from './storage.js';
 import { calculateTripSummary, generateFinalTripReport, toBaseAmount } from './calculations.js';
 import { savePhoto, getPhoto } from './db.js';
 import { generateQRCodeSVG } from './qrcode.js';
+import { initAuth, loginWithGoogle, logoutUser, getCurrentUser } from './auth.js';
 
 // 全域狀態
 let currentTrip = null;
@@ -199,6 +200,22 @@ const el = {
   btnCopyInviteLink: document.getElementById('btnCopyInviteLink'),
   inviteQrSvgWrapper: document.getElementById('inviteQrSvgWrapper'),
   inviteMemberList: document.getElementById('inviteMemberList'),
+
+  // 👤 帳號與同步 Modal
+  btnUserAuth: document.getElementById('btnUserAuth'),
+  userAuthIcon: document.getElementById('userAuthIcon'),
+  userAuthAvatar: document.getElementById('userAuthAvatar'),
+  accountModal: document.getElementById('accountModal'),
+  closeAccountModalBtn: document.getElementById('closeAccountModalBtn'),
+  authLoggedOutPanel: document.getElementById('authLoggedOutPanel'),
+  authLoggedInPanel: document.getElementById('authLoggedInPanel'),
+  btnGoogleSignIn: document.getElementById('btnGoogleSignIn'),
+  btnSignOut: document.getElementById('btnSignOut'),
+  authProfileImg: document.getElementById('authProfileImg'),
+  authDisplayName: document.getElementById('authDisplayName'),
+  authEmail: document.getElementById('authEmail'),
+  authUidInput: document.getElementById('authUidInput'),
+  btnCopyUid: document.getElementById('btnCopyUid'),
 
   // 浮動提示 Toast
   toast: document.getElementById('toast'),
@@ -1799,11 +1816,57 @@ function bindEvents() {
     if (el.tripManagerModal) el.tripManagerModal.classList.add('open');
   };
 
-  // 頂部 3 大按鈕 (安裝到手機、邀請旅伴、切換帳本)
+  // 頂部 4 大按鈕 (安裝到手機、邀請旅伴、切換帳本、Google 帳號狀態)
   if (el.btnInstallPwa) el.btnInstallPwa.onclick = handlePwaInstall;
   if (el.btnInviteMembers) el.btnInviteMembers.onclick = openInviteModal;
   if (el.btnSwitchTrip) el.btnSwitchTrip.onclick = openTripManager;
   if (el.currentTripBadge) el.currentTripBadge.onclick = openTripManager;
+  if (el.btnUserAuth) el.btnUserAuth.onclick = openAccountModal;
+
+  // 👤 帳號 Modal 操作
+  if (el.closeAccountModalBtn) {
+    el.closeAccountModalBtn.onclick = () => {
+      if (el.accountModal) el.accountModal.classList.remove('open');
+    };
+  }
+  if (el.btnGoogleSignIn) {
+    el.btnGoogleSignIn.onclick = async () => {
+      try {
+        showToast('正在開啟 Google 登入...', '🌱');
+        const user = await loginWithGoogle();
+        showToast(`歡迎回來，${user.displayName || '旅人'}！`, '🎉');
+        if (el.accountModal) el.accountModal.classList.remove('open');
+      } catch (err) {
+        console.error('Google 登入失敗:', err);
+        showToast(`登入失敗: ${err.message}`, '⚠️');
+      }
+    };
+  }
+  if (el.btnSignOut) {
+    el.btnSignOut.onclick = async () => {
+      try {
+        await logoutUser();
+        showToast('已安全登出', '👋');
+        if (el.accountModal) el.accountModal.classList.remove('open');
+      } catch (err) {
+        showToast('登出發生異常', '⚠️');
+      }
+    };
+  }
+  if (el.btnCopyUid) {
+    el.btnCopyUid.onclick = async () => {
+      if (el.authUidInput?.value) {
+        try {
+          await navigator.clipboard.writeText(el.authUidInput.value);
+          showToast('已複製 UID', '📋');
+        } catch (e) {
+          el.authUidInput.select();
+          document.execCommand('copy');
+          showToast('已複製 UID', '📋');
+        }
+      }
+    };
+  }
 
   // 🔗 邀請旅伴 Modal 關閉與複製事件
   if (el.closeInviteModalBtn) {
@@ -2217,6 +2280,44 @@ function openAddPaymentItemModal() {
 }
 
 /**
+ * 開啟帳號彈窗
+ */
+function openAccountModal() {
+  if (el.accountModal) {
+    el.accountModal.classList.add('open');
+  }
+}
+
+/**
+ * 根據登入身分更新全站 UI
+ */
+function updateAuthUI(user) {
+  if (user) {
+    // 已登入
+    if (el.userAuthIcon) el.userAuthIcon.style.display = 'none';
+    if (el.userAuthAvatar) {
+      el.userAuthAvatar.src = user.photoURL || '';
+      el.userAuthAvatar.style.display = 'block';
+    }
+    if (el.authLoggedOutPanel) el.authLoggedOutPanel.style.display = 'none';
+    if (el.authLoggedInPanel) el.authLoggedInPanel.style.display = 'block';
+
+    if (el.authProfileImg) el.authProfileImg.src = user.photoURL || '';
+    if (el.authDisplayName) el.authDisplayName.textContent = user.displayName || '旅人';
+    if (el.authEmail) el.authEmail.textContent = user.email || '';
+    if (el.authUidInput) el.authUidInput.value = user.uid || '';
+  } else {
+    // 未登入
+    if (el.userAuthIcon) el.userAuthIcon.style.display = 'inline';
+    if (el.userAuthAvatar) el.userAuthAvatar.style.display = 'none';
+    if (el.authLoggedOutPanel) el.authLoggedOutPanel.style.display = 'block';
+    if (el.authLoggedInPanel) el.authLoggedInPanel.style.display = 'none';
+
+    if (el.authUidInput) el.authUidInput.value = '';
+  }
+}
+
+/**
  * 啟動 App
  */
 function initApp() {
@@ -2224,6 +2325,9 @@ function initApp() {
   bindEvents();
 
   loadTripData();
+
+  // 啟動 Firebase 身分驗證監聽 (不阻斷本機啟動)
+  initAuth(updateAuthUI).catch((e) => console.warn('Auth init failed:', e));
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
