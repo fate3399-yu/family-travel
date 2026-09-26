@@ -127,6 +127,51 @@ export const DEFAULT_TAGS = [
   '小孩', '迪士尼', '伴手禮', '必買', '和服體驗', '機場', '宵夜', '免稅店'
 ];
 
+/**
+ * 🌟 依據幣別或行程標題推薦預設造訪城市
+ */
+export function getPresetCitiesForCurrency(currency = 'JPY', title = '') {
+  const c = (currency || '').toUpperCase();
+  const lowerTitle = (title || '').toLowerCase();
+
+  if (c === 'KRW' || lowerTitle.includes('韓') || lowerTitle.includes('首爾') || lowerTitle.includes('釜山')) {
+    return ['首爾', '弘大', '明洞', '東大門', '釜山', '濟州島'];
+  }
+  if (c === 'THB' || lowerTitle.includes('泰') || lowerTitle.includes('曼谷') || lowerTitle.includes('清邁')) {
+    return ['曼谷', '清邁', '芭達雅', '普吉島'];
+  }
+  if (c === 'EUR' || lowerTitle.includes('歐') || lowerTitle.includes('法') || lowerTitle.includes('義') || lowerTitle.includes('德')) {
+    return ['巴黎', '羅馬', '佛羅倫斯', '巴塞隆納'];
+  }
+  if (c === 'USD' || lowerTitle.includes('美')) {
+    return ['紐約', '洛杉磯', '舊金山', '拉斯維加斯'];
+  }
+  if (c === 'TWD' || lowerTitle.includes('台') || lowerTitle.includes('灣')) {
+    return ['台北', '台中', '台南', '高雄', '花蓮'];
+  }
+  if (lowerTitle.includes('沖繩')) {
+    return ['那霸', '美國村', '名護', '恩納'];
+  }
+  // 預設 JPY 日本
+  return ['東京', '京都', '大阪', '那霸'];
+}
+
+/**
+ * 🌟 依據幣別推薦預設常用標籤
+ */
+export function getPresetTagsForCurrency(currency = 'JPY', title = '') {
+  const c = (currency || '').toUpperCase();
+  const lowerTitle = (title || '').toLowerCase();
+
+  if (c === 'KRW' || lowerTitle.includes('韓')) {
+    return ['小孩', '伴手禮', '必買', '韓服體驗', '美妝', '機場', '宵夜', '免稅店'];
+  }
+  if (c === 'THB' || lowerTitle.includes('泰')) {
+    return ['夜市', '美食', 'SPA按摩', '泰服體驗', '伴手禮', '必買', '機場'];
+  }
+  return ['小孩', '迪士尼', '伴手禮', '必買', '和服體驗', '機場', '宵夜', '免稅店'];
+}
+
 // 皮克敏夥伴種類設定 (Pikmin Companions)
 export const PIKMIN_TYPES = {
   red: { id: 'red', name: '紅皮克敏', badge: '🔴', roleTitle: '勇敢先鋒', color: '#EF4444', flower: '🌼', desc: '不怕火、勇敢走第一' },

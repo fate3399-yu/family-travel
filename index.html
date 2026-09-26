@@ -24,7 +24,6 @@
       </div>
     </div>
     <div class="header-actions">
-      <button class="icon-btn pwa-install-btn" id="btnInstallPwa" title="安裝到手機桌面">📲</button>
       <button class="icon-btn" id="btnInviteMembers" title="邀請旅伴 (複製連結 / QR Code)">🔗</button>
       <button class="icon-btn" id="btnSwitchTrip" title="切換其他行程帳本">🗺️</button>
       <button class="icon-btn user-auth-btn" id="btnUserAuth" title="Google 帳號與同步">
@@ -507,8 +506,11 @@
 
         <!-- 造訪城市清單 -->
         <div class="form-group">
-          <label class="form-label" for="tripCitiesInput">預計造訪城市 (逗號分隔)</label>
-          <input type="text" id="tripCitiesInput" class="form-input" placeholder="例如：那霸, 美國村, 名護, 恩納">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label class="form-label" for="tripCitiesInput" style="margin-bottom: 0;">預計造訪城市 (逗號分隔)</label>
+            <button type="button" id="btnRecommendCities" class="btn-text-action" style="font-size: 0.78rem; color: #2D5A3D; background: rgba(77, 128, 118, 0.12); padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(77, 128, 118, 0.25); cursor: pointer; font-weight: 600;">✨ 帶入推薦城市</button>
+          </div>
+          <input type="text" id="tripCitiesInput" class="form-input" placeholder="例如：首爾, 弘大, 明洞 或 那霸, 美國村">
           <span style="font-size: 0.72rem; color: var(--text-dim); margin-top: 2px;">系統會自動生成各城市的記帳分流標籤</span>
         </div>
 

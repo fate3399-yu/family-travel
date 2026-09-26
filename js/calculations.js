@@ -200,8 +200,10 @@ export function calculateTripSummary(trip, transactions = []) {
     };
   });
 
-  // 今日支出計算 (當地貨幣 + 折合台幣)
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // 今日支出計算 (當地貨幣 + 折合台幣，使用本地日期以避免 UTC 時區偏差)
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   let todaySpentTarget = 0;
   let todaySpentBase = 0;
   transactions.forEach((tx) => {

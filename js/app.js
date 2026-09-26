@@ -3,7 +3,7 @@
  * 支援多帳本管理、自訂信用卡/交通卡/行動支付工具、即時折合台幣轉換、皮克敏夥伴配置與結算報告
  */
 
-import { CURRENCIES, CATEGORIES, PAYMENT_CATEGORIES, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS, PIKMIN_TYPES, createTrip, createTransaction, getPresetPaymentItemsForCurrency } from './models.js';
+import { CURRENCIES, CATEGORIES, PAYMENT_CATEGORIES, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS, PIKMIN_TYPES, createTrip, createTransaction, getPresetPaymentItemsForCurrency, getPresetCitiesForCurrency, getPresetTagsForCurrency } from './models.js';
 import { Storage } from './storage.js';
 import { calculateTripSummary, generateFinalTripReport, toBaseAmount } from './calculations.js';
 import { savePhoto, getPhoto } from './db.js';
@@ -179,6 +179,7 @@ const el = {
   tripStartDateInput: document.getElementById('tripStartDateInput'),
   tripEndDateInput: document.getElementById('tripEndDateInput'),
   tripCitiesInput: document.getElementById('tripCitiesInput'),
+  btnRecommendCities: document.getElementById('btnRecommendCities'),
   tripBudgetInput: document.getElementById('tripBudgetInput'),
   tripMembersEditorContainer: document.getElementById('tripMembersEditorContainer'),
   addMemberRowBtn: document.getElementById('addMemberRowBtn'),
@@ -683,8 +684,9 @@ function renderTagChipsSelector(filterText = '', initialActiveTags = null) {
     currentSelectedTags = new Set(initialActiveTags);
   }
 
+  const presetTags = getPresetTagsForCurrency(currentTrip?.targetCurrency || 'JPY', currentTrip?.title || '');
   const customTags = Storage.getCustomTags();
-  const allTags = Array.from(new Set([...DEFAULT_TAGS, ...customTags]));
+  const allTags = Array.from(new Set([...presetTags, ...customTags]));
 
   const query = (filterText || '').trim().toLowerCase();
   const filtered = query
@@ -2343,24 +2345,34 @@ function openAddExpenseModal() {
   const localIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
   el.expenseDatetime.value = localIso;
 
-  el.expenseCurrency.value = currentTrip.targetCurrency || 'JPY';
+  // 🌟 1. 幣別：100% 絕對優先預設為當前帳本目標幣別 (例如切換到韓國就是 KRW，日本就是 JPY，泰國就是 THB)
+  const targetCurr = currentTrip?.targetCurrency || 'JPY';
+  el.expenseCurrency.value = targetCurr;
 
-  // 記憶回填
+  // 🌟 2. 城市：優先使用當前帳本已有的城市，絕不拿其他國家的舊快取覆蓋
+  const tripCities = currentTrip?.cities && currentTrip.cities.length > 0 ? currentTrip.cities : ['主要城市'];
+
+  // 記憶回填 (分類、卡片、付款人)
   const cache = Storage.getLastInputCache();
   if (cache) {
     if (cache.category) el.expenseCategory.value = cache.category;
-    if (cache.currency) el.expenseCurrency.value = cache.currency;
-    if (cache.city) el.expenseCity.value = cache.city;
+    // 只有在快取的城市確實屬於當前帳本時才沿用，否則預設為該帳本第一個城市
+    if (cache.city && tripCities.includes(cache.city)) {
+      el.expenseCity.value = cache.city;
+    } else {
+      el.expenseCity.value = tripCities[0];
+    }
     if (cache.paymentItemId) {
       renderPaymentSelectOptions(cache.paymentItemId);
     } else {
       renderPaymentSelectOptions();
     }
   } else {
+    el.expenseCity.value = tripCities[0];
     renderPaymentSelectOptions();
   }
 
-  // 🌟 智慧預設付款人：根據當前登入身分自動判定（爸爸登入預設爸爸，媽媽登入預設媽媽）
+  // 🌟 3. 智慧預設付款人：根據當前登入身分自動判定（爸爸登入預設爸爸，媽媽登入預設媽媽）
   const autoPayerId = getAutoPayerIdForCurrentUser();
   if (autoPayerId) {
     el.expensePayer.value = autoPayerId;
@@ -2371,6 +2383,8 @@ function openAddExpenseModal() {
   setExpenseMode(false);
   if (el.expenseStayDate) el.expenseStayDate.value = '';
   renderBeneficiarySelector(['all']);
+
+  // 🌟 4. 立即更新折合台幣與匯率提示條 (如 1 KRW ≈ 0.0240 TWD)
   updateLiveConversion();
 
   el.expenseModal.classList.add('open');
@@ -2856,6 +2870,31 @@ function bindEvents() {
   if (el.editCurrentTripBtn) el.editCurrentTripBtn.onclick = () => openEditTripModal(currentTrip);
   if (el.closeTripModalBtn) el.closeTripModalBtn.onclick = () => el.tripModal.classList.remove('open');
   if (el.addMemberRowBtn) el.addMemberRowBtn.onclick = () => addMemberRow();
+
+  // 🌟 切換目標貨幣時，智慧推薦對應城市
+  if (el.tripTargetCurrencyInput) {
+    el.tripTargetCurrencyInput.onchange = () => {
+      const curr = el.tripTargetCurrencyInput.value;
+      const title = el.tripTitleInput.value || '';
+      const recommendedCities = getPresetCitiesForCurrency(curr, title);
+      const currentCities = el.tripCitiesInput.value.trim();
+      const isOkinawaDefault = currentCities === '那霸, 美國村, 名護, 恩納' || currentCities.includes('那霸');
+      if (!currentCities || isOkinawaDefault) {
+        el.tripCitiesInput.value = recommendedCities.join(', ');
+      }
+    };
+  }
+
+  // ✨ 點擊「帶入推薦城市」按鈕
+  if (el.btnRecommendCities) {
+    el.btnRecommendCities.onclick = () => {
+      const curr = el.tripTargetCurrencyInput?.value || 'JPY';
+      const title = el.tripTitleInput?.value || '';
+      const recommended = getPresetCitiesForCurrency(curr, title);
+      el.tripCitiesInput.value = recommended.join(', ');
+      showToast(`已為您填入 ${curr} 推薦熱門城市！`, '📍');
+    };
+  }
 
   // 🌟 即時換算台幣連動事件
   el.expenseAmount.oninput = updateLiveConversion;
