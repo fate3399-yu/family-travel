@@ -3,7 +3,7 @@
  * 支援出國無網路、飛機上、地鐵離線開啟與記帳
  */
 
-const CACHE_NAME = 'pikmin-travel-v26';
+const CACHE_NAME = 'pikmin-travel-v27';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

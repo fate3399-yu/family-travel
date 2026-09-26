@@ -16,6 +16,88 @@ import {
 import { initFirebaseServices } from './firebase-config.js';
 
 let activeTransactionUnsubscribe = null;
+let activeTripsUnsubscribe = null;
+
+/**
+ * 監聽家庭底下的所有旅程帳本 (即時雙向同步)
+ */
+export async function listenToFamilyTrips(familyId, onDataCallback) {
+  if (activeTripsUnsubscribe) {
+    activeTripsUnsubscribe();
+    activeTripsUnsubscribe = null;
+  }
+
+  const { db, success } = await initFirebaseServices();
+  if (!success || !db || !familyId) {
+    return () => {};
+  }
+
+  const tripsColRef = collection(db, 'families', familyId, 'trips');
+  activeTripsUnsubscribe = onSnapshot(tripsColRef, (snapshot) => {
+    const list = [];
+    snapshot.forEach((d) => {
+      list.push({ id: d.id, ...d.data() });
+    });
+    if (onDataCallback) {
+      onDataCallback(list);
+    }
+  }, (err) => {
+    console.warn('雲端旅程監聽警告:', err.message);
+  });
+
+  return activeTripsUnsubscribe;
+}
+
+/**
+ * 儲存旅程至 Firestore (新增或更新)
+ */
+export async function saveCloudTrip(familyId, tripData) {
+  const { db, success } = await initFirebaseServices();
+  if (!success || !db || !familyId || !tripData) {
+    return false;
+  }
+
+  const tripId = tripData.id || ('trip_' + Date.now());
+  const ref = doc(db, 'families', familyId, 'trips', tripId);
+
+  const payload = {
+    ...tripData,
+    id: tripId,
+    familyId,
+    updatedAt: serverTimestamp()
+  };
+
+  if (!tripData.createdAt) {
+    payload.createdAt = serverTimestamp();
+  }
+
+  try {
+    await setDoc(ref, payload, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn('雲端儲存旅程異常:', err);
+    return false;
+  }
+}
+
+/**
+ * 刪除 Firestore 旅程
+ */
+export async function deleteCloudTrip(familyId, tripId) {
+  const { db, success } = await initFirebaseServices();
+  if (!success || !db || !familyId || !tripId) {
+    return false;
+  }
+
+  try {
+    const ref = doc(db, 'families', familyId, 'trips', tripId);
+    await deleteDoc(ref);
+    return true;
+  } catch (err) {
+    console.warn('雲端刪除旅程異常:', err);
+    return false;
+  }
+}
 
 /**
  * 監聽特定旅程底下的所有交易 (即時雙向同步)

@@ -21,7 +21,16 @@ import {
   setCurrentFamily,
   getCurrentFamilyMembers
 } from './family.js';
-import { saveCloudTransaction, deleteCloudTransaction, listenToTripTransactions, getPendingOfflineCount, flushOfflineQueue } from './cloud-storage.js';
+import {
+  saveCloudTransaction,
+  deleteCloudTransaction,
+  listenToTripTransactions,
+  listenToFamilyTrips,
+  saveCloudTrip,
+  deleteCloudTrip,
+  getPendingOfflineCount,
+  flushOfflineQueue
+} from './cloud-storage.js';
 import { checkHasLocalDataToMigrate, migrateLocalDataToCloud } from './migration.js';
 
 // 全域狀態
@@ -2069,6 +2078,13 @@ function renderTripManagerList() {
         e.stopPropagation();
         if (confirm(`確定要刪除「${trip.title}」帳本及其所有紀錄嗎？\n此動作無法復原！`)) {
           Storage.deleteTrip(trip.id);
+
+          const family = getCurrentFamily();
+          const familyId = family ? (family.id || family.familyId) : null;
+          if (familyId) {
+            deleteCloudTrip(familyId, trip.id);
+          }
+
           const remainingTrips = Storage.getTrips();
           if (trip.id === activeTrip.id && remainingTrips.length > 0) {
             Storage.setActiveTripId(remainingTrips[0].id);
@@ -2762,6 +2778,13 @@ function openAddPaymentItemModal() {
       Storage.addTrip(tripData);
     }
 
+    // 🌟 同步推播至家庭雲端 (全家設備即時更新)
+    const family = getCurrentFamily();
+    const familyId = family ? (family.id || family.familyId) : null;
+    if (familyId) {
+      saveCloudTrip(familyId, tripData);
+    }
+
     el.tripModal.classList.remove('open');
     loadTripData();
   };
@@ -2772,6 +2795,13 @@ function openAddPaymentItemModal() {
     if (!tripId) return;
     if (confirm(`確定要刪除「${currentTrip.title}」帳本及其所有紀錄嗎？此動作無法復原。`)) {
       Storage.deleteTrip(tripId);
+
+      const family = getCurrentFamily();
+      const familyId = family ? (family.id || family.familyId) : null;
+      if (familyId) {
+        deleteCloudTrip(familyId, tripId);
+      }
+
       el.tripModal.classList.remove('open');
       loadTripData();
     }
@@ -3188,9 +3218,10 @@ if (typeof window !== 'undefined') {
 }
 
 let familyUnsubscribe = null;
+let familyTripsUnsubscribe = null;
 
 /**
- * 重新整理使用者的家庭資料與成員監聽
+ * 重新整理使用者的家庭資料、成員監聽與雲端旅程帳本即時雙向同步
  */
 async function refreshFamilyStatus(user) {
   if (!user) return;
@@ -3199,10 +3230,53 @@ async function refreshFamilyStatus(user) {
     if (families.length > 0) {
       const primaryFamily = families[0];
       setCurrentFamily(primaryFamily);
+      const familyId = primaryFamily.id || primaryFamily.familyId;
       if (el.currentFamilyTitle) el.currentFamilyTitle.textContent = primaryFamily.name;
 
+      // 1. 監聽家庭成員清單
       if (familyUnsubscribe) familyUnsubscribe();
-      familyUnsubscribe = await listenToFamilyMembers(primaryFamily.id || primaryFamily.familyId);
+      familyUnsubscribe = await listenToFamilyMembers(familyId);
+
+      // 2. 🌟 監聽家庭所有雲端旅程帳本 (即時雙向同步，爸爸媽媽帳本完全一致)
+      if (familyTripsUnsubscribe) familyTripsUnsubscribe();
+      familyTripsUnsubscribe = await listenToFamilyTrips(familyId, (cloudTrips) => {
+        if (cloudTrips && cloudTrips.length > 0) {
+          // 將雲端帳本寫入本地 Storage
+          Storage.saveTrips(cloudTrips);
+
+          // 檢查當前選取的帳本是否存在於雲端清單中
+          const currentActive = Storage.getActiveTrip();
+          const existsInCloud = currentActive && cloudTrips.some((t) => t.id === currentActive.id);
+
+          // 若當前本地 activeTrip 不在雲端 (例如媽媽剛加入時本地是「東京＋關西」，而雲端是爸爸建的「測試」帳本)
+          // 自動無痛切換為雲端最新帳本！
+          if (!existsInCloud) {
+            Storage.setActiveTripId(cloudTrips[0].id);
+          }
+
+          loadTripData();
+          if (el.tripManagerModal?.classList.contains('open')) {
+            renderTripManagerList();
+          }
+        } else {
+          // 雲端家庭尚未有旅程，自動將本機現有的旅程 (例如爸爸剛建的「測試」) 推送上雲端
+          const localTrips = Storage.getTrips();
+          if (localTrips && localTrips.length > 0) {
+            localTrips.forEach((t) => saveCloudTrip(familyId, t));
+          }
+        }
+      });
+
+      // 3. 檢查本機是否有自訂帳本尚未同步到雲端 (確保爸爸建的「測試」一定會即時上傳)
+      const localTrips = Storage.getTrips();
+      localTrips.forEach((lt) => {
+        if (lt && lt.title && lt.title !== '🇯🇵 東京＋關西 2027 春櫻冒險') {
+          saveCloudTrip(familyId, lt);
+          // 同步上傳該旅程本地已記下的交易 (若尚未在雲端)
+          const txs = Storage.getTransactions(lt.id);
+          txs.forEach((tx) => saveCloudTransaction(familyId, lt.id, tx));
+        }
+      });
     }
   } catch (e) {
     console.warn('載入家庭失敗:', e);
