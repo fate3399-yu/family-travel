@@ -2328,14 +2328,16 @@ async function submitQuickAction() {
     isPrepaid: false
   });
 
-  currentTransactions.unshift(tx);
-  Storage.saveTransactions(currentTrip.id, currentTransactions);
+  // 1. 本地快取儲存
+  Storage.saveTransaction(tx);
 
-  // 雲端同步推播
+  // 2. 雲端同步推播
   const family = getCurrentFamily();
   const familyId = family ? (family.id || family.familyId) : null;
   if (familyId) {
-    saveCloudTransaction(familyId, tx);
+    saveCloudTransaction(familyId, currentTrip.id, tx).catch((err) => {
+      console.warn('雲端交易同步異常 (已儲存於本機):', err);
+    });
   }
 
   // 累加模板使用次數並記憶本次使用的卡片
@@ -2362,8 +2364,8 @@ async function submitQuickAction() {
 
   closeQuickInputModal();
 
-  renderOverview();
-  renderTimeline();
+  // 重新載入帳本資料與儀表板 (避免未定義函式錯誤)
+  loadTripData();
 
   // 🛡️ 觸發 3 秒安全氣囊 Toast
   showQuickUndoToast(tx);
@@ -2411,8 +2413,7 @@ function handleQuickUndo() {
   if (!lastQuickRecordedTx || !currentTrip) return;
   const txId = lastQuickRecordedTx.id;
 
-  currentTransactions = currentTransactions.filter((t) => t.id !== txId);
-  Storage.saveTransactions(currentTrip.id, currentTransactions);
+  Storage.deleteTransaction(txId);
 
   const family = getCurrentFamily();
   const familyId = family ? (family.id || family.familyId) : null;
@@ -2427,8 +2428,7 @@ function handleQuickUndo() {
   lastQuickRecordedTx = null;
 
   showToast('已撤銷該筆記帳');
-  renderOverview();
-  renderTimeline();
+  loadTripData();
 }
 
 function handleQuickEdit() {
@@ -3837,6 +3837,13 @@ function bindEvents() {
   }
   if (el.closeQuickInputModalBtn) {
     el.closeQuickInputModalBtn.onclick = closeQuickInputModal;
+  }
+  if (el.quickInputModal) {
+    el.quickInputModal.onclick = (e) => {
+      if (e.target === el.quickInputModal) {
+        closeQuickInputModal();
+      }
+    };
   }
   if (el.btnQuickSaveSubmit) {
     el.btnQuickSaveSubmit.onclick = submitQuickAction;
