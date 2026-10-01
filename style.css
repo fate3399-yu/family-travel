@@ -1091,11 +1091,11 @@ body {
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .form-label {
-  font-size: 0.8rem;
+  font-size: 0.92rem;
   font-weight: 800;
   color: var(--forest-dark);
   letter-spacing: -0.01em;
@@ -1103,9 +1103,9 @@ body {
 
 .form-input, .form-select {
   width: 100%;
-  height: 36px;
-  padding: 5px 10px;
-  font-size: 0.82rem;
+  height: 40px;
+  padding: 6px 12px;
+  font-size: 0.92rem;
   font-weight: 600;
   border: 1.5px solid #DCE6D9;
   border-radius: var(--radius-sm);
@@ -1118,15 +1118,15 @@ body {
 }
 
 .form-select {
-  padding-right: 26px;
+  padding-right: 28px;
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
   background-color: #FAFCF9;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233D6B4F' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%233D6B4F' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
+  background-position: right 10px center;
   appearance: none;
   -webkit-appearance: none;
 }
@@ -1142,9 +1142,9 @@ body {
   background: #EAF7EE;
   color: var(--forest-green);
   border: 1px solid #C6E7D0;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: var(--radius-pill);
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   font-weight: 800;
   font-family: var(--font-number);
   display: inline-flex;
@@ -1157,8 +1157,8 @@ body {
   background: #FFFFFF;
   border: 1.5px solid #D8E6D5;
   border-radius: 14px;
-  padding: 4px 10px;
-  gap: 6px;
+  padding: 6px 12px;
+  gap: 8px;
   box-shadow: 0 2px 6px rgba(61, 107, 79, 0.04);
   transition: all 0.2s ease;
   position: relative;
@@ -1175,13 +1175,13 @@ body {
 .currency-select {
   flex-shrink: 0;
   width: auto;
-  max-width: 110px;
+  max-width: 120px;
   border: 1px solid #E2E8F0;
   background: #F8FAF6;
-  font-size: 0.8rem;
+  font-size: 0.92rem;
   font-weight: 800;
   color: var(--forest-dark);
-  padding: 4px 8px;
+  padding: 6px 10px;
   border-radius: var(--radius-pill);
   cursor: pointer;
   outline: none;
@@ -1203,10 +1203,10 @@ body {
   border: none;
   background: transparent;
   font-family: var(--font-number);
-  font-size: 1.45rem;
+  font-size: 1.6rem;
   font-weight: 900;
   color: var(--forest-dark);
-  padding: 1px 2px;
+  padding: 2px 4px;
   outline: none;
   text-align: right;
   letter-spacing: -0.5px;
@@ -1221,11 +1221,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 10px;
+  padding: 6px 12px;
   background: #F4FAF5;
   border: 1px solid #D8EAD9;
   border-radius: 10px;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: var(--forest-dark);
 }
@@ -1244,11 +1244,11 @@ body {
 
 .segment-btn {
   flex: 1;
-  height: 32px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   font-weight: 800;
   border: none;
   background: transparent;
@@ -1354,7 +1354,7 @@ body {
 }
 
 .modal-title {
-  font-size: 0.98rem;
+  font-size: 1.12rem;
   font-weight: 800;
   color: var(--forest-dark);
   letter-spacing: -0.015em;
@@ -1947,6 +1947,35 @@ details.payment-category-group[open] .group-toggle-arrow {
 
 .btn-tm-edit:hover {
   background: #E5EFE3;
+}
+
+.btn-tm-copy {
+  background: #F0F7FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-tm-copy:hover {
+  background: #DBEAFE;
+}
+
+.trip-manager-spent-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #F4FAF5;
+  border: 1px solid #C8DEC9;
+  color: var(--forest-dark);
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.76rem;
 }
 
 .btn-tm-delete {
@@ -2691,7 +2720,73 @@ body[data-theme="acnh"] .dock-btn-add #dockLabelAdd {
   background: #FFF5F5;
 }
 
+/* 🌿 折疊式進階區塊 (標籤、照片等次要欄位) */
+.collapsible-section {
+  background: #F8FAF7;
+  border: 1.5px solid #E3ECE0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
 
+.collapsible-section[open] {
+  border-color: var(--forest-green);
+}
 
+.collapsible-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--forest-dark);
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  list-style: none;
+}
 
+.collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible-summary::before {
+  content: '▸';
+  font-size: 0.7rem;
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+
+.collapsible-section[open] > .collapsible-summary::before {
+  transform: rotate(90deg);
+}
+
+.collapsible-hint {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+.collapsible-section[open] .collapsible-hint {
+  display: none;
+}
+
+.collapsible-body {
+  padding: 4px 12px 10px;
+  animation: collapseSlideIn 0.2s ease;
+}
+
+@keyframes collapseSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 

@@ -177,6 +177,7 @@ const el = {
   tripForm: document.getElementById('tripForm'),
   tripModalTitle: document.getElementById('tripModalTitle'),
   editTripId: document.getElementById('editTripId'),
+  copySourceTripId: document.getElementById('copySourceTripId'),
   tripTitleInput: document.getElementById('tripTitleInput'),
   tripTargetCurrencyInput: document.getElementById('tripTargetCurrencyInput'),
   tripBaseCurrencyInput: document.getElementById('tripBaseCurrencyInput'),
@@ -232,6 +233,9 @@ const el = {
   tripManagerCreateBtn: document.getElementById('tripManagerCreateBtn'),
   btnThemePikmin: document.getElementById('btnThemePikmin'),
   btnThemeAcnh: document.getElementById('btnThemeAcnh'),
+  tmTotalExpensesAllTrips: document.getElementById('tmTotalExpensesAllTrips'),
+  tmTripCount: document.getElementById('tmTripCount'),
+  tmTotalBudgetRatio: document.getElementById('tmTotalBudgetRatio'),
 
   // 🔗 旅伴名單與邀請管理 Modal
   inviteModal: document.getElementById('inviteModal'),
@@ -269,6 +273,9 @@ const el = {
   btnConfirmJoinFamily: document.getElementById('btnConfirmJoinFamily'),
 
   // 🎯 花費對象與預付欄位
+  expenseBeneficiary: document.getElementById('expenseBeneficiary'),
+  beneficiaryCustomBox: document.getElementById('beneficiaryCustomBox'),
+  btnBeneficiaryResetAll: document.getElementById('btnBeneficiaryResetAll'),
   btnBeneficiaryAll: document.getElementById('btnBeneficiaryAll'),
   beneficiaryMemberChips: document.getElementById('beneficiaryMemberChips'),
   prepaidExpenseDateGroup: document.getElementById('prepaidExpenseDateGroup'),
@@ -2185,6 +2192,7 @@ function renderSettings() {
 function openAddTripModal() {
   el.tripForm.reset();
   el.editTripId.value = '';
+  if (el.copySourceTripId) el.copySourceTripId.value = '';
   el.tripModalTitle.textContent = '🌱 建立新的冒險帳本';
   el.deleteTripBtn.style.display = 'none';
 
@@ -2221,6 +2229,50 @@ function openAddTripModal() {
 }
 
 /**
+ * 🌟 旅程帳本管理：開啟「複製帳本」視窗 (直接繼承卡包、成員與國家設定，省去重複新增)
+ */
+function openCopyTripModal(sourceTrip) {
+  if (!sourceTrip) return;
+
+  el.tripForm.reset();
+  el.editTripId.value = ''; // 建立新帳本，不帶原 ID
+  if (el.copySourceTripId) el.copySourceTripId.value = sourceTrip.id; // 記錄來源帳本以複製卡包
+  el.tripModalTitle.textContent = `📑 複製帳本（沿用「${sourceTrip.title}」卡包與設定）`;
+  el.deleteTripBtn.style.display = 'none';
+
+  // 預設將原名稱加上 (新行程)
+  el.tripTitleInput.value = `${sourceTrip.title} (新行程)`;
+  el.tripTargetCurrencyInput.value = sourceTrip.targetCurrency || 'JPY';
+  el.tripBaseCurrencyInput.value = sourceTrip.baseCurrency || 'TWD';
+
+  // 預設日期更新為今天起算相同天數
+  const now = new Date();
+  const future = new Date(Date.now() + 86400000 * 6);
+  const pad = (n) => String(n).padStart(2, '0');
+  el.tripStartDateInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  el.tripEndDateInput.value = `${future.getFullYear()}-${pad(future.getMonth() + 1)}-${pad(future.getDate())}`;
+
+  el.tripCitiesInput.value = (sourceTrip.cities || []).join(', ');
+  el.tripBudgetInput.value = sourceTrip.totalBudget || 100000;
+
+  const tripTheme = sourceTrip.theme || 'pikmin';
+  const radioP = document.getElementById('themeRadioPikmin');
+  const radioA = document.getElementById('themeRadioAcnh');
+  if (radioP && radioA) {
+    radioP.checked = tripTheme === 'pikmin';
+    radioA.checked = tripTheme === 'acnh';
+  }
+
+  // 完整沿用來源帳本的探險成員
+  renderTripMembersEditor(sourceTrip.members || []);
+  el.tripModal.classList.add('open');
+  setTimeout(() => {
+    el.tripTitleInput.focus();
+    el.tripTitleInput.select();
+  }, 150);
+}
+
+/**
  * 🌟 旅程帳本管理：開啟編輯帳本視窗 (支援指定帳本或當前帳本)
  */
 function openEditTripModal(targetTrip = null) {
@@ -2236,6 +2288,7 @@ function openEditTripModal(targetTrip = null) {
 
   el.tripForm.reset();
   el.editTripId.value = tripToEdit.id;
+  if (el.copySourceTripId) el.copySourceTripId.value = '';
   el.tripModalTitle.textContent = `✏️ 編輯「${tripToEdit.title}」帳本設定`;
 
   const trips = Storage.getTrips();
@@ -2283,6 +2336,32 @@ function renderTripManagerList() {
     }
   }
 
+  // 讀取所有交易資料，用來精準統計各帳本花費與全部累計總花費
+  const allTxList = Storage.getTransactions() || [];
+
+  // 計算所有帳本的累計總支出與總預算
+  let grandTotalSpentTWD = 0;
+  let grandTotalBudgetTWD = 0;
+
+  trips.forEach((t) => {
+    grandTotalBudgetTWD += Number(t.totalBudget || 0);
+    const tripTx = allTxList.filter((tx) => tx.tripId === t.id && tx.type !== 'exchange');
+    const spentTWD = tripTx.reduce((sum, tx) => sum + toBaseAmount(tx, t.baseCurrency || 'TWD'), 0);
+    grandTotalSpentTWD += spentTWD;
+  });
+
+  // 更新頂部總支出統計看板
+  if (el.tmTotalExpensesAllTrips) {
+    el.tmTotalExpensesAllTrips.textContent = `NT$ ${formatNumber(Math.round(grandTotalSpentTWD))}`;
+  }
+  if (el.tmTripCount) {
+    el.tmTripCount.textContent = trips.length;
+  }
+  if (el.tmTotalBudgetRatio) {
+    const budgetPct = grandTotalBudgetTWD > 0 ? Math.round((grandTotalSpentTWD / grandTotalBudgetTWD) * 100) : 0;
+    el.tmTotalBudgetRatio.textContent = `總預算 NT$ ${formatNumber(grandTotalBudgetTWD)}（執行率 ${budgetPct}%）`;
+  }
+
   trips.forEach((trip) => {
     const isCurrent = trip.id === activeTrip.id;
     const card = document.createElement('div');
@@ -2292,6 +2371,12 @@ function renderTripManagerList() {
     const memberCount = (trip.members || []).length;
     const dateRange = (trip.startDate && trip.endDate) ? `${trip.startDate} ~ ${trip.endDate}` : '尚未設定日期';
     const themeTag = trip.theme === 'acnh' ? '🍃 動森風格' : '🌱 皮克敏風格';
+
+    // 計算本帳本已記錄的總支出金額
+    const thisTripTx = allTxList.filter((tx) => tx.tripId === trip.id && tx.type !== 'exchange');
+    const thisTripSpentTWD = thisTripTx.reduce((sum, tx) => sum + toBaseAmount(tx, trip.baseCurrency || 'TWD'), 0);
+    const thisTripBudget = Number(trip.totalBudget || 0);
+    const budgetUsagePct = thisTripBudget > 0 ? Math.round((thisTripSpentTWD / thisTripBudget) * 100) : 0;
 
     card.innerHTML = `
       <div class="trip-manager-main">
@@ -2308,12 +2393,28 @@ function renderTripManagerList() {
           ${citySummary ? `<span>📍 ${citySummary}</span>` : ''}
           <span>👥 ${memberCount} 位成員</span>
           <span>🎨 ${themeTag}</span>
-          <span>💰 預算 NT$ ${formatNumber(trip.totalBudget || 0)}</span>
+        </div>
+
+        <!-- 帳本個別花費與預算進度條 -->
+        <div style="background: #F8FAF7; padding: 8px 10px; border-radius: 8px; border: 1px solid #E3ECE0; margin-top: 4px; display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: baseline; gap: 6px;">
+            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">累計花費：</span>
+            <span style="font-family: var(--font-number); font-size: 0.95rem; font-weight: 900; color: var(--forest-dark);">
+              NT$ ${formatNumber(Math.round(thisTripSpentTWD))}
+            </span>
+            <span style="font-size: 0.68rem; color: var(--text-muted);">
+              / 預算 NT$ ${formatNumber(thisTripBudget)}
+            </span>
+          </div>
+          <span style="font-size: 0.72rem; font-weight: 800; color: ${budgetUsagePct > 100 ? 'var(--danger)' : 'var(--forest-green)'};">
+            ${budgetUsagePct}%
+          </span>
         </div>
       </div>
 
       <div class="trip-manager-actions">
         ${!isCurrent ? `<button type="button" class="btn-tm-switch" data-trip-id="${trip.id}">切換至此帳本 ➔</button>` : ''}
+        <button type="button" class="btn-tm-copy" data-trip-id="${trip.id}" title="複製此帳本的卡片包、成員與國家設定為新行程">📑 複製帳本</button>
         <button type="button" class="btn-tm-edit" data-trip-id="${trip.id}">✏️ 編輯</button>
         ${trips.length > 1 ? `<button type="button" class="btn-tm-delete" data-trip-id="${trip.id}">🗑️ 刪除</button>` : ''}
       </div>
@@ -2339,6 +2440,16 @@ function renderTripManagerList() {
           if (el.tripManagerModal) el.tripManagerModal.classList.remove('open');
           loadTripData();
         }
+      };
+    }
+
+    // 📑 複製帳本按鈕
+    const copyBtn = card.querySelector('.btn-tm-copy');
+    if (copyBtn) {
+      copyBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (el.tripManagerModal) el.tripManagerModal.classList.remove('open');
+        openCopyTripModal(trip);
       };
     }
 
@@ -2699,7 +2810,13 @@ function openAddExpenseModal() {
 
   // 🌟 4. 立即更新折合台幣與匯率提示條 (如 1 KRW ≈ 0.0240 TWD)
   updateLiveConversion();
-  renderQuickAmountSteppers();
+  // renderQuickAmountSteppers(); // 已移除快速面額鍵盤
+
+  // 收合進階折疊區 (標籤、照片) 保持初始畫面乾淨
+  const tagDetails = document.getElementById('tagSectionDetails');
+  if (tagDetails) tagDetails.open = false;
+  const photoDetails = document.getElementById('photoSectionDetails');
+  if (photoDetails) photoDetails.open = false;
 
   el.expenseModal.classList.add('open');
   setTimeout(() => el.expenseAmount.focus(), 150);
@@ -2728,7 +2845,7 @@ function openEditExpenseModal(tx) {
   }
   el.customRateRow.style.display = 'none';
 
-  renderQuickAmountSteppers();
+  // renderQuickAmountSteppers(); // 已移除快速面額鍵盤
 
   // 標籤回填與搜尋框重設
   if (el.tagSearchInput) el.tagSearchInput.value = '';
@@ -2748,8 +2865,17 @@ function openEditExpenseModal(tx) {
     el.photoPlaceholder.style.display = 'none';
     el.photoPreviewContainer.style.display = 'flex';
     el.photoPreviewImg.src = tx.photoThumbnail;
+    // 有照片時自動展開照片折疊區
+    const photoDetails = document.getElementById('photoSectionDetails');
+    if (photoDetails) photoDetails.open = true;
   } else {
     resetPhotoPreview();
+  }
+
+  // 有標籤時自動展開標籤折疊區
+  if (tx.tags && tx.tags.length > 0) {
+    const tagDetails = document.getElementById('tagSectionDetails');
+    if (tagDetails) tagDetails.open = true;
   }
 
   el.expenseModal.classList.add('open');
@@ -2773,64 +2899,135 @@ function setExpenseMode(isPrepaid) {
 }
 
 /**
- * 🎯 渲染「花在誰身上？」(Beneficiary) 選擇膠囊群組
+ * 🎯 渲染「花在誰身上？」(Beneficiary) 下拉選單與自訂多選膠囊
  * 🌟 核心保證：100% 依據當前帳本成員 currentTrip.members (帳本設定幾人就幾人，完美同步)
  */
 function renderBeneficiarySelector(selectedIds = ['all']) {
-  if (!el.beneficiaryMemberChips) return;
-  el.beneficiaryMemberChips.innerHTML = '';
+  if (!el.expenseBeneficiary) return;
+  el.expenseBeneficiary.innerHTML = '';
 
   const isAll = !selectedIds || selectedIds.length === 0 || selectedIds.includes('all');
-  if (el.btnBeneficiaryAll) {
-    el.btnBeneficiaryAll.classList.toggle('active', isAll);
-  }
 
   // 🌟 嚴格只讀取當前帳本的成員名單 (例如：爸爸、媽媽、大寶、二寶)
   const members = (currentTrip?.members && currentTrip.members.length > 0)
     ? currentTrip.members
     : [{ id: 'm_me', name: '爸爸', role: '我', pikminType: 'red' }];
 
+  // 1. 全家選項 (預設)
+  const optAll = document.createElement('option');
+  optAll.value = 'all';
+  optAll.textContent = '👨‍👩‍👧‍👦 全家 (預設)';
+  el.expenseBeneficiary.appendChild(optAll);
+
+  // 2. 個別成員選項
   members.forEach((m) => {
-    const mId = m.id;
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'filter-chip';
-    chip.style.cssText = 'padding: 4px 10px; font-size: 0.76rem; font-weight: 700; border-radius: 20px;';
-    chip.dataset.memberId = mId;
-
-    const isSelected = !isAll && selectedIds.includes(mId);
-    if (isSelected) chip.classList.add('active');
-
+    const opt = document.createElement('option');
+    opt.value = m.id;
     const pikmin = getCompanionMeta(m.pikminType);
-    chip.textContent = `${pikmin.badge} ${m.name}`;
-
-    chip.onclick = () => {
-      // 點擊成員時，取消「全家」
-      if (el.btnBeneficiaryAll) el.btnBeneficiaryAll.classList.remove('active');
-      chip.classList.toggle('active');
-
-      // 若所有成員都被取消選取，自動退回「全家」
-      const anyActive = el.beneficiaryMemberChips.querySelector('.filter-chip.active');
-      if (!anyActive && el.btnBeneficiaryAll) {
-        el.btnBeneficiaryAll.classList.add('active');
-      }
-    };
-
-    el.beneficiaryMemberChips.appendChild(chip);
+    opt.textContent = `${pikmin.badge} ${m.name}${m.role ? ` (${m.role})` : ''}`;
+    el.expenseBeneficiary.appendChild(opt);
   });
 
-  if (el.btnBeneficiaryAll) {
-    el.btnBeneficiaryAll.onclick = () => {
-      el.btnBeneficiaryAll.classList.add('active');
-      el.beneficiaryMemberChips.querySelectorAll('.filter-chip.active').forEach((c) => c.classList.remove('active'));
+  // 3. 自訂多位成員選項
+  const optCustom = document.createElement('option');
+  optCustom.value = 'custom';
+  optCustom.textContent = '👥 自訂多位成員...';
+  el.expenseBeneficiary.appendChild(optCustom);
+
+  // 4. 渲染多選膠囊群組 (供 custom 模式展開時使用)
+  if (el.beneficiaryMemberChips) {
+    el.beneficiaryMemberChips.innerHTML = '';
+    members.forEach((m) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'filter-chip';
+      chip.style.cssText = 'padding: 5px 12px; font-size: 0.82rem; font-weight: 700; border-radius: 20px;';
+      chip.dataset.memberId = m.id;
+
+      const isSelected = !isAll && selectedIds.includes(m.id);
+      if (isSelected) chip.classList.add('active');
+
+      const pikmin = getCompanionMeta(m.pikminType);
+      chip.textContent = `${pikmin.badge} ${m.name}`;
+
+      chip.onclick = () => {
+        chip.classList.toggle('active');
+        updateBeneficiaryCustomSelectLabel();
+      };
+      el.beneficiaryMemberChips.appendChild(chip);
+    });
+  }
+
+  // 5. 依傳入的 selectedIds 判定選取狀態
+  if (isAll) {
+    el.expenseBeneficiary.value = 'all';
+    if (el.beneficiaryCustomBox) el.beneficiaryCustomBox.style.display = 'none';
+  } else if (selectedIds.length === 1 && members.some((m) => m.id === selectedIds[0])) {
+    el.expenseBeneficiary.value = selectedIds[0];
+    if (el.beneficiaryCustomBox) el.beneficiaryCustomBox.style.display = 'none';
+  } else {
+    // 複選多位成員
+    el.expenseBeneficiary.value = 'custom';
+    updateBeneficiaryCustomSelectLabel();
+    if (el.beneficiaryCustomBox) el.beneficiaryCustomBox.style.display = 'block';
+  }
+
+  // 6. 下拉選單切換監聽
+  el.expenseBeneficiary.onchange = () => {
+    const val = el.expenseBeneficiary.value;
+    if (val === 'custom') {
+      if (el.beneficiaryCustomBox) el.beneficiaryCustomBox.style.display = 'block';
+      updateBeneficiaryCustomSelectLabel();
+    } else {
+      if (el.beneficiaryCustomBox) el.beneficiaryCustomBox.style.display = 'none';
+      if (el.beneficiaryMemberChips) {
+        el.beneficiaryMemberChips.querySelectorAll('.filter-chip').forEach((c) => {
+          c.classList.toggle('active', val !== 'all' && c.dataset.memberId === val);
+        });
+      }
+    }
+  };
+
+  // 7. 設回全家重設按鈕
+  if (el.btnBeneficiaryResetAll) {
+    el.btnBeneficiaryResetAll.onclick = () => {
+      el.expenseBeneficiary.value = 'all';
+      if (el.beneficiaryCustomBox) el.beneficiaryCustomBox.style.display = 'none';
+      if (el.beneficiaryMemberChips) {
+        el.beneficiaryMemberChips.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
+      }
     };
   }
 }
 
+/**
+ * 輔助：更新自訂多選標籤文字 (例如：👥 2位 (媽媽、二寶))
+ */
+function updateBeneficiaryCustomSelectLabel() {
+  if (!el.beneficiaryMemberChips || !el.expenseBeneficiary) return;
+  const activeChips = Array.from(el.beneficiaryMemberChips.querySelectorAll('.filter-chip.active'));
+  const customOpt = el.expenseBeneficiary.querySelector('option[value="custom"]');
+  if (!customOpt) return;
+
+  if (activeChips.length === 0) {
+    customOpt.textContent = '👥 自訂多位成員...';
+  } else {
+    const names = activeChips.map((c) => c.textContent.trim().split(' ').pop()).join('、');
+    customOpt.textContent = `👥 ${activeChips.length}位 (${names})`;
+  }
+}
+
 function getSelectedBeneficiaries() {
-  if (el.btnBeneficiaryAll && el.btnBeneficiaryAll.classList.contains('active')) {
+  if (!el.expenseBeneficiary) return ['all'];
+  const val = el.expenseBeneficiary.value;
+  if (val === 'all') {
     return ['all'];
   }
+  if (val !== 'custom') {
+    return [val];
+  }
+
+  // custom 自訂模式：讀取所有被選中的 chips
   const selected = [];
   el.beneficiaryMemberChips?.querySelectorAll('.filter-chip.active').forEach((c) => {
     if (c.dataset.memberId) selected.push(c.dataset.memberId);
@@ -3255,19 +3452,19 @@ function bindEvents() {
     updateLiveConversion();
   };
 
-  // 🌟 剪貼簿智慧讀取與填寫
-  if (el.btnPasteClipboard) {
-    el.btnPasteClipboard.onclick = handlePasteClipboard;
-  }
+  // 🌟 剪貼簿智慧讀取與填寫 (已移除)
+  // if (el.btnPasteClipboard) {
+  //   el.btnPasteClipboard.onclick = handlePasteClipboard;
+  // }
 
-  // 🌟 記帳快捷情境點擊 (一鍵帶入交通/超商/正餐/咖啡/藥妝)
-  if (el.quickPresetChips) {
-    el.quickPresetChips.querySelectorAll('.btn-quick-preset').forEach((btn) => {
-      btn.onclick = () => {
-        applyQuickPreset(btn.dataset.preset);
-      };
-    });
-  }
+  // 🌟 記帳快捷情境點擊 (已移除)
+  // if (el.quickPresetChips) {
+  //   el.quickPresetChips.querySelectorAll('.btn-quick-preset').forEach((btn) => {
+  //     btn.onclick = () => {
+  //       applyQuickPreset(btn.dataset.preset);
+  //     };
+  //   });
+  // }
 
   // 🌟 品項關鍵字自動歸類與推薦標籤
   if (el.expenseNotes) {
@@ -3279,7 +3476,7 @@ function bindEvents() {
   // 🌟 幣別切換時同步更新快速面額鍵盤
   el.expenseCurrency.addEventListener('change', () => {
     updateLiveConversion();
-    renderQuickAmountSteppers();
+    // renderQuickAmountSteppers(); // 已移除快速面額鍵盤
   });
 
   // 🌟 支援簡易四則運算 (例如 1200+350 在失焦時自動算出 1550)
@@ -3375,6 +3572,21 @@ function openAddPaymentItemModal() {
 
     const existingTrip = isEdit ? Storage.getTrips().find((t) => t.id === el.editTripId.value) : null;
     const selectedTheme = document.querySelector('input[name="tripThemeInput"]:checked')?.value || 'pikmin';
+    const sourceTripId = el.copySourceTripId ? el.copySourceTripId.value : null;
+    const sourceTrip = sourceTripId ? Storage.getTrips().find((t) => t.id === sourceTripId) : null;
+
+    let inheritedPaymentItems = null;
+    if (isEdit && existingTrip?.paymentItems) {
+      inheritedPaymentItems = existingTrip.paymentItems;
+    } else if (sourceTrip) {
+      // 🌟 深度拷貝來源帳本的專屬卡包 (賦予新 ID，避免污染原帳本)
+      const srcItems = Storage.getPaymentItemsForTrip(sourceTrip);
+      inheritedPaymentItems = srcItems.map((item) => ({
+        ...item,
+        id: 'pm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)
+      }));
+    }
+
     const tripData = createTrip({
       id: isEdit ? el.editTripId.value : undefined,
       title: el.tripTitleInput.value.trim(),
@@ -3386,7 +3598,7 @@ function openAddPaymentItemModal() {
       totalBudget: parseFloat(el.tripBudgetInput.value) || 100000,
       theme: selectedTheme,
       members,
-      paymentItems: existingTrip?.paymentItems || null
+      paymentItems: inheritedPaymentItems
     });
 
     if (isEdit) {
