@@ -967,6 +967,62 @@ body {
   border: 1px solid #D5E1D3;
 }
 
+/* 🌟 記帳卡片滑動操作容器 (Swipe to Action) */
+.tx-swipe-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  touch-action: pan-y;
+  user-select: none;
+  background: #f1f5f0;
+}
+
+.tx-swipe-actions {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  background: linear-gradient(135deg, #FF5252 0%, #D32F2F 100%);
+  display: flex;
+  align-items: center;
+  border-radius: 18px;
+  z-index: 1;
+}
+
+.tx-swipe-del-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
+  width: 84px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #FFFFFF;
+  cursor: pointer;
+  padding: 0;
+  font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+  transition: transform 0.15s ease;
+  user-select: none;
+}
+
+.tx-swipe-del-btn:active {
+  transform: scale(0.92);
+}
+
+.tx-swipe-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.tx-swipe-wrapper.is-open .tx-card:hover {
+  transform: translateX(84px);
+}
+
 /* 🌟 交易卡片 (移植 money 專案精緻微卡片) */
 .tx-card {
   display: flex;

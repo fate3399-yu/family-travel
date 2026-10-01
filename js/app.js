@@ -1473,11 +1473,231 @@ function renderTimeline() {
         openEditExpenseModal(tx);
       };
 
-      dayGroup.appendChild(card);
+      // 🌟 包裝外層滑動操作容器 (Swipe to Delete)
+      const swipeWrapper = document.createElement('div');
+      swipeWrapper.className = 'tx-swipe-wrapper';
+
+      const swipeActions = document.createElement('div');
+      swipeActions.className = 'tx-swipe-actions';
+      swipeActions.innerHTML = `
+        <button type="button" class="tx-swipe-del-btn" aria-label="刪除此筆支出">
+          <span class="tx-swipe-icon">🗑️</span>
+          <span class="tx-swipe-text">刪除</span>
+        </button>
+      `;
+
+      swipeActions.querySelector('.tx-swipe-del-btn').onclick = (e) => {
+        e.stopPropagation();
+        deleteExpenseRecord(tx.id, tx.notes || cat.label);
+      };
+
+      swipeWrapper.appendChild(swipeActions);
+      swipeWrapper.appendChild(card);
+
+      attachSwipeToDelete(swipeWrapper, card, tx, cat);
+
+      dayGroup.appendChild(swipeWrapper);
     });
 
     el.timelineContainer.appendChild(dayGroup);
   });
+}
+
+/**
+ * 🌟 刪除單筆支出紀錄（支援時間軸滑動刪除與詳細視窗刪除）
+ */
+function deleteExpenseRecord(txId, txTitle = '') {
+  if (!txId) return;
+  const promptText = txTitle ? `確定要刪除「${txTitle}」嗎？` : '確定要刪除這筆支出紀錄嗎？';
+  if (confirm(promptText)) {
+    Storage.deleteTransaction(txId);
+    const family = getCurrentFamily();
+    const familyId = family ? (family.id || family.familyId) : null;
+    if (familyId && currentTrip) {
+      deleteCloudTransaction(familyId, currentTrip.id, txId).catch(() => {});
+    }
+    if (el.expenseModal) el.expenseModal.classList.remove('open');
+    showToast(`已刪除${txTitle ? `「${txTitle}」` : '支出紀錄'}`, '🗑️');
+    loadTripData();
+  }
+}
+
+/**
+ * 🌟 綁定明細卡片向右滑動手勢 (Swipe Right to Delete)
+ */
+function attachSwipeToDelete(wrapper, card, tx, cat) {
+  let startX = 0;
+  let startY = 0;
+  let currentX = 0;
+  let currentY = 0;
+  let isSwiping = false;
+  let isHorizontal = null;
+  let isOpen = false;
+  let justSwiped = false;
+  let isDraggingMouse = false;
+  const ACTION_WIDTH = 84;
+
+  const resetCard = () => {
+    card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
+    card.style.transform = 'translateX(0px)';
+    isOpen = false;
+    wrapper.classList.remove('is-open');
+  };
+
+  const openCard = () => {
+    card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
+    card.style.transform = `translateX(${ACTION_WIDTH}px)`;
+    isOpen = true;
+    wrapper.classList.add('is-open');
+  };
+
+  // 點擊卡片外部時關閉
+  const onDocClick = (e) => {
+    if (isOpen && !wrapper.contains(e.target)) {
+      resetCard();
+    }
+  };
+  document.addEventListener('touchstart', onDocClick, { passive: true });
+  document.addEventListener('mousedown', onDocClick);
+
+  // --- 手機觸控事件 (Touch Events) ---
+  card.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) return;
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    currentX = startX;
+    currentY = startY;
+    isHorizontal = null;
+    isSwiping = false;
+    card.style.transition = 'none';
+  }, { passive: true });
+
+  card.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1) return;
+    const touch = e.touches[0];
+    currentX = touch.clientX;
+    currentY = touch.clientY;
+    const diffX = currentX - startX;
+    const diffY = currentY - startY;
+
+    if (isHorizontal === null) {
+      if (Math.abs(diffX) > 6 || Math.abs(diffY) > 6) {
+        isHorizontal = Math.abs(diffX) > Math.abs(diffY);
+      }
+    }
+
+    if (isHorizontal === true) {
+      if (e.cancelable) e.preventDefault();
+      isSwiping = true;
+      justSwiped = true;
+
+      let targetX = isOpen ? (ACTION_WIDTH + diffX) : diffX;
+      if (targetX < 0) {
+        targetX = targetX * 0.15;
+      } else if (targetX > ACTION_WIDTH + 60) {
+        targetX = ACTION_WIDTH + 60 + (targetX - (ACTION_WIDTH + 60)) * 0.3;
+      }
+      card.style.transform = `translateX(${targetX}px)`;
+    }
+  }, { passive: false });
+
+  const onTouchEnd = () => {
+    if (!isSwiping) {
+      return;
+    }
+    const diffX = currentX - startX;
+    card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
+
+    if (!isOpen) {
+      if (diffX > 50) {
+        openCard();
+      } else {
+        resetCard();
+      }
+    } else {
+      if (diffX < -20) {
+        resetCard();
+      } else {
+        openCard();
+      }
+    }
+
+    setTimeout(() => {
+      justSwiped = false;
+      isSwiping = false;
+    }, 250);
+  };
+
+  card.addEventListener('touchend', onTouchEnd);
+  card.addEventListener('touchcancel', onTouchEnd);
+
+  // --- 滑鼠拖曳支援 (Mouse Drag Events) ---
+  card.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.target.closest('.tx-action-copy')) return;
+    isDraggingMouse = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    currentX = startX;
+    card.style.transition = 'none';
+
+    const onMouseMove = (me) => {
+      if (!isDraggingMouse) return;
+      currentX = me.clientX;
+      const diffX = currentX - startX;
+      if (Math.abs(diffX) > 8) {
+        isSwiping = true;
+        justSwiped = true;
+        let targetX = isOpen ? (ACTION_WIDTH + diffX) : diffX;
+        if (targetX < 0) {
+          targetX = targetX * 0.15;
+        } else if (targetX > ACTION_WIDTH + 60) {
+          targetX = ACTION_WIDTH + 60 + (targetX - (ACTION_WIDTH + 60)) * 0.3;
+        }
+        card.style.transform = `translateX(${targetX}px)`;
+      }
+    };
+
+    const onMouseUp = () => {
+      isDraggingMouse = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+
+      if (isSwiping) {
+        const diffX = currentX - startX;
+        card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
+        if (!isOpen) {
+          if (diffX > 50) openCard();
+          else resetCard();
+        } else {
+          if (diffX < -20) resetCard();
+          else openCard();
+        }
+        setTimeout(() => {
+          justSwiped = false;
+          isSwiping = false;
+        }, 250);
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  });
+
+  // 攔截點擊：若已展開則收合，若滑動結束則阻擋誤觸彈窗
+  card.addEventListener('click', (e) => {
+    if (justSwiped || isSwiping) {
+      e.stopPropagation();
+      e.preventDefault();
+      return;
+    }
+    if (isOpen) {
+      e.stopPropagation();
+      e.preventDefault();
+      resetCard();
+      return;
+    }
+  }, true);
 }
 
 /**
@@ -4512,18 +4732,7 @@ function openAddPaymentItemModal() {
   // 刪除支出紀錄
   el.deleteExpenseBtn.onclick = () => {
     const txId = el.editExpenseId.value;
-    if (!txId) return;
-    if (confirm('確定要刪除這筆支出紀錄嗎？')) {
-      Storage.deleteTransaction(txId);
-      const family = getCurrentFamily();
-      const familyId = family ? (family.id || family.familyId) : null;
-      if (familyId && currentTrip) {
-        deleteCloudTransaction(familyId, currentTrip.id, txId).catch(() => {});
-      }
-      el.expenseModal.classList.remove('open');
-      showToast('已刪除支出紀錄', '🗑️');
-      loadTripData();
-    }
+    deleteExpenseRecord(txId);
   };
 
   // 換匯與前期舊鈔登記彈窗模式切換
