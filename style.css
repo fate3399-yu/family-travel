@@ -988,6 +988,11 @@ body {
   align-items: center;
   border-radius: 18px;
   z-index: 1;
+  pointer-events: none;
+}
+
+.tx-swipe-wrapper.is-open .tx-swipe-actions {
+  pointer-events: auto;
 }
 
 .tx-swipe-del-btn {
@@ -1021,6 +1026,17 @@ body {
 
 .tx-swipe-wrapper.is-open .tx-card:hover {
   transform: translateX(84px);
+}
+
+.tx-swipe-wrapper .tx-card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  background: #FFFFFF;
+}
+
+body[data-theme="acnh"] .tx-swipe-wrapper .tx-card {
+  background: #FFFEF4;
 }
 
 /* 🌟 交易卡片 (移植 money 專案精緻微卡片) */
