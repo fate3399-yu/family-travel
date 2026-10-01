@@ -128,6 +128,214 @@ export const DEFAULT_TAGS = [
 ];
 
 /**
+ * 🌟 預設生活化開箱快捷模板 (Quick Actions 2.0)
+ * 涵蓋家庭出國最高頻的 6 種情境，支援自適應當地外幣、自動記憶上次卡片與成員歸屬
+ */
+export const DEFAULT_QUICK_TEMPLATES = [
+  {
+    id: 'tpl_convenience',
+    title: '超商補給',
+    icon: '🥤',
+    category: 'food',
+    currencyRule: 'trip_local',
+    paymentRule: { mode: 'remember_last' },
+    beneficiaryRule: { target: 'all' },
+    payerRule: 'current_user',
+    tags: ['超商', '點心'],
+    defaultNotes: '7-11/全家補給',
+    usageCount: 20,
+    isPinned: true,
+    isSystemDefault: true
+  },
+  {
+    id: 'tpl_restaurant',
+    title: '餐廳正餐',
+    icon: '🍜',
+    category: 'food',
+    currencyRule: 'trip_local',
+    paymentRule: { mode: 'remember_last' },
+    beneficiaryRule: { target: 'all' },
+    payerRule: 'current_user',
+    tags: ['正餐'],
+    defaultNotes: '特色餐廳美食',
+    usageCount: 15,
+    isPinned: true,
+    isSystemDefault: true
+  },
+  {
+    id: 'tpl_transit',
+    title: '交通搭乘',
+    icon: '🚇',
+    category: 'traffic',
+    currencyRule: 'trip_local',
+    paymentRule: { mode: 'remember_last' },
+    beneficiaryRule: { target: 'all' },
+    payerRule: 'current_user',
+    tags: ['地鐵', '交通'],
+    defaultNotes: '地鐵/公車/交通卡加值',
+    usageCount: 12,
+    isPinned: true,
+    isSystemDefault: true
+  },
+  {
+    id: 'tpl_tickets',
+    title: '景點門票',
+    icon: '🎟️',
+    category: 'sightseeing',
+    currencyRule: 'trip_local',
+    paymentRule: { mode: 'remember_last' },
+    beneficiaryRule: { target: 'all' },
+    payerRule: 'current_user',
+    tags: ['門票'],
+    defaultNotes: '門票設施體驗',
+    usageCount: 8,
+    isPinned: false,
+    isSystemDefault: true
+  },
+  {
+    id: 'tpl_souvenir',
+    title: '伴手禮名產',
+    icon: '🎁',
+    category: 'shopping',
+    currencyRule: 'trip_local',
+    paymentRule: { mode: 'remember_last' },
+    beneficiaryRule: { target: 'current_user' },
+    payerRule: 'current_user',
+    tags: ['伴手禮'],
+    defaultNotes: '伴手禮採買',
+    usageCount: 6,
+    isPinned: false,
+    isSystemDefault: true
+  },
+  {
+    id: 'tpl_cafe',
+    title: '咖啡下午茶',
+    icon: '☕',
+    category: 'cafe',
+    currencyRule: 'trip_local',
+    paymentRule: { mode: 'remember_last' },
+    beneficiaryRule: { target: 'all' },
+    payerRule: 'current_user',
+    tags: ['咖啡'],
+    defaultNotes: '下午茶點心',
+    usageCount: 5,
+    isPinned: false,
+    isSystemDefault: true
+  }
+];
+
+/**
+ * 建立快捷模板物件
+ */
+export function createQuickTemplate({
+  id = 'tpl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+  title = '自訂快捷',
+  icon = '⚡',
+  category = 'food',
+  currencyRule = 'trip_local', // 'trip_local' | 'base' | 'fixed' | 'last_used'
+  fixedCurrency = 'JPY',
+  paymentRule = { mode: 'remember_last' },
+  beneficiaryRule = { target: 'all' },
+  payerRule = 'current_user',
+  fixedPayerId = null,
+  tags = [],
+  defaultNotes = '',
+  usageCount = 0,
+  isPinned = false,
+  isSystemDefault = false
+} = {}) {
+  return {
+    id,
+    title,
+    icon,
+    category,
+    currencyRule,
+    fixedCurrency,
+    paymentRule: typeof paymentRule === 'object' && paymentRule !== null ? paymentRule : { mode: 'remember_last' },
+    beneficiaryRule: typeof beneficiaryRule === 'object' && beneficiaryRule !== null ? beneficiaryRule : { target: 'all' },
+    payerRule,
+    fixedPayerId,
+    tags: Array.isArray(tags) ? tags : [],
+    defaultNotes,
+    usageCount: Number(usageCount) || 0,
+    isPinned: Boolean(isPinned),
+    isSystemDefault: Boolean(isSystemDefault)
+  };
+}
+
+/**
+ * 🌟 解析消費歸屬對象 (beneficiaryRule ➔ 成員 ID 陣列)
+ */
+export function resolveBeneficiariesForRule(beneficiaryRule, trip, currentUserId) {
+  const rule = typeof beneficiaryRule === 'string'
+    ? { target: beneficiaryRule }
+    : (beneficiaryRule || { target: 'all' });
+  const members = trip && Array.isArray(trip.members) ? trip.members : [];
+
+  if (rule.target === 'all') {
+    return ['all'];
+  }
+  if (rule.target === 'adults') {
+    const adultIds = members.filter((m) => m.role !== '小孩').map((m) => m.id);
+    return adultIds.length > 0 ? adultIds : ['all'];
+  }
+  if (rule.target === 'kids') {
+    const kidIds = members.filter((m) => m.role === '小孩').map((m) => m.id);
+    return kidIds.length > 0 ? kidIds : ['all'];
+  }
+  if (rule.target === 'current_user') {
+    return [currentUserId || (members[0] ? members[0].id : 'm_me')];
+  }
+  if (rule.target === 'custom' && Array.isArray(rule.customMemberIds) && rule.customMemberIds.length > 0) {
+    return rule.customMemberIds;
+  }
+  return ['all'];
+}
+
+/**
+ * 🌟 解析支付方式卡片 (paymentRule ➔ 具體 PaymentItem)
+ */
+export function resolvePaymentItemForRule(paymentRule, trip, lastUsedItemId) {
+  const pItems = (trip && Array.isArray(trip.paymentItems) && trip.paymentItems.length > 0)
+    ? trip.paymentItems
+    : DEFAULT_PAYMENT_ITEMS;
+
+  const rule = paymentRule || { mode: 'remember_last' };
+
+  if (rule.mode === 'fixed' && rule.fixedPaymentItemId) {
+    const found = pItems.find((p) => p.id === rule.fixedPaymentItemId);
+    if (found) return found;
+  }
+
+  if (rule.mode === 'remember_last') {
+    const candidateId = rule.lastUsedPaymentItemId || lastUsedItemId;
+    if (candidateId) {
+      const found = pItems.find((p) => p.id === candidateId);
+      if (found) return found;
+    }
+  }
+
+  return pItems[0] || { id: 'pm_def_cash', name: '現金', category: 'cash', icon: '💵' };
+}
+
+/**
+ * 🌟 解析幣別 (currencyRule ➔ 具體幣別代碼 JPY/TWD 等)
+ */
+export function resolveCurrencyForRule(currencyRule, trip, lastUsedCurrency) {
+  const targetCurr = trip?.targetCurrency || 'JPY';
+  const baseCurr = trip?.baseCurrency || 'TWD';
+
+  if (currencyRule === 'base') return baseCurr;
+  if (currencyRule === 'trip_local') return targetCurr;
+  if (currencyRule === 'last_used' && lastUsedCurrency) return lastUsedCurrency;
+  if (typeof currencyRule === 'object' && currencyRule.mode === 'fixed') {
+    return currencyRule.fixedCurrency || targetCurr;
+  }
+  return targetCurr;
+}
+
+
+/**
  * 🌟 依據幣別或行程標題推薦預設造訪城市
  */
 export function getPresetCitiesForCurrency(currency = 'JPY', title = '') {
@@ -239,11 +447,17 @@ export function createTrip({
     { id: 'w_cash_target', name: '外幣現金錢包', currency: 'JPY', type: 'cash', balance: 0 },
     { id: 'w_cash_twd', name: '台幣現金錢包', currency: 'TWD', type: 'cash', balance: 0 }
   ],
+  defaultExchangeRate = null,
   paymentItems = null
 } = {}) {
   const resolvedPaymentItems = (Array.isArray(paymentItems) && paymentItems.length > 0)
     ? paymentItems
     : getPresetPaymentItemsForCurrency(targetCurrency, title);
+
+  const fallbackRate = CURRENCIES[targetCurrency]?.defaultRate || 0.21;
+  const resolvedRate = (defaultExchangeRate !== null && defaultExchangeRate !== undefined && !isNaN(Number(defaultExchangeRate)) && Number(defaultExchangeRate) > 0)
+    ? Number(defaultExchangeRate)
+    : fallbackRate;
 
   return {
     id,
@@ -254,6 +468,7 @@ export function createTrip({
     endDate,
     baseCurrency,
     targetCurrency,
+    defaultExchangeRate: resolvedRate,
     cities,
     totalBudget: Number(totalBudget),
     theme: theme || 'pikmin',

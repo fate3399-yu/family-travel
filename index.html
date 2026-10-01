@@ -99,6 +99,31 @@
         </div>
       </div>
 
+      <!-- ⚡ Quick Actions 2.0 快捷記帳專區 -->
+      <div class="quick-actions-card" id="quickActionsCard" style="margin-bottom: 12px;">
+        <div class="quick-actions-header">
+          <div class="quick-actions-title">
+            <span class="pulse-sparkle">⚡</span>
+            <span>快捷記帳</span>
+            <span class="quick-actions-badge">3秒速記</span>
+          </div>
+          <button type="button" id="btnManageQuickTemplates" class="btn-manage-templates-link" title="管理快捷模板">
+            ⚙️ 模板庫
+          </button>
+        </div>
+
+        <!-- 1. ⭐ 常用情境模板 (水平滾動膠囊列) -->
+        <div class="quick-templates-scroll" id="quickTemplatesContainer">
+          <!-- 動態渲染常用模板膠囊 -->
+        </div>
+
+        <!-- 2. 🕘 智慧最近使用 (若有資料則顯示) -->
+        <div class="recent-actions-row" id="recentActionsRow" style="display: none;">
+          <span class="recent-actions-label">🕘 最近</span>
+          <div class="recent-actions-list" id="recentActionsContainer"></div>
+        </div>
+      </div>
+
       <!-- 搜尋列與分類篩選區 (完全移植分攤 App 極致體驗) -->
       <div class="timeline-search-filter-card" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
         <!-- 搜尋列 -->
@@ -201,38 +226,44 @@
       </div>
     </section>
 
-    <!-- 頁籤三：換匯與錢包 (Wallets & Exchange) -->
-    <section id="tabWallets" class="tab-content" style="display: none;">
-      <!-- 外幣現金水位總覽卡片 -->
+    <!-- 頁籤三：⚡ 快捷模板庫與管理 (Templates & Quick Actions) -->
+    <section id="tabTemplates" class="tab-content" style="display: none;">
+      <!-- 快捷模板總覽卡片 -->
       <div class="trip-header-card" style="margin-bottom: 14px;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <div>
-            <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--pikmin-green-deep);">💴 現金錢包與換匯管理</h3>
+            <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--pikmin-green-deep);">⚡ 快捷記帳模板庫</h3>
             <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
-              掌握實體現金水位，無論是出國前台幣換匯或前期留存舊鈔，都能乾淨記帳。
+              出國高頻消費情境，跨帳本通用。自適應當地貨幣、自動記憶上次卡片與歸屬。
             </p>
           </div>
-          <div style="text-align: right; flex-shrink: 0;">
-            <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700;">錢包現金餘額</span>
-            <div id="walletsHeroCashRemain" style="font-family: var(--font-number); font-size: 1.25rem; font-weight: 900; color: #D97706;">
-              ¥0
-            </div>
-          </div>
+          <button type="button" id="btnAddCustomTemplateBtn" class="btn-action-primary" style="flex-shrink: 0;">
+            <span>＋</span> 新增模板
+          </button>
         </div>
 
-        <!-- 雙按鈕：換匯 vs 前期剩餘外幣 (舊鈔) -->
-        <div class="wallet-actions-row">
-          <button type="button" id="openExchangeModalBtn" class="btn-primary" style="padding: 10px 12px; font-size: 0.85rem;">
-            💱 記錄台幣換匯
-          </button>
-          <button type="button" id="openSurplusModalBtn" class="btn-wallet-surplus">
-            🎒 登記前期剩餘外幣 (舊鈔)
-          </button>
-        </div>
+        <!-- 模板分組清單 (系統推薦 ⭐ + 我的快捷 ❤️) -->
+        <div id="tabTemplatesList" class="settings-templates-list"></div>
       </div>
 
-      <h4 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">外幣現金與換匯歷程</h4>
-      <div id="exchangeListContainer" style="display: flex; flex-direction: column; gap: 8px;"></div>
+      <!-- 可折疊：💴 歷史換匯與現金紀錄 (平易淡化、相容舊帳本) -->
+      <details class="trip-header-card legacy-wallets-accordion" style="margin-top: 14px;">
+        <summary style="cursor: pointer; font-size: 0.88rem; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
+          <span>💴 歷史外幣換匯紀錄 (備用折疊)</span>
+          <span id="walletsHeroCashRemain" style="font-family: var(--font-number); font-size: 0.95rem; font-weight: 800; color: #D97706;">¥0</span>
+        </summary>
+        <div style="padding-top: 10px;">
+          <div class="wallet-actions-row" style="margin-bottom: 8px;">
+            <button type="button" id="openExchangeModalBtn" class="btn-secondary" style="padding: 6px 10px; font-size: 0.78rem;">
+              💱 登記台幣換匯
+            </button>
+            <button type="button" id="openSurplusModalBtn" class="btn-wallet-surplus" style="padding: 6px 10px; font-size: 0.78rem;">
+              🎒 登記舊鈔
+            </button>
+          </div>
+          <div id="exchangeListContainer" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+      </details>
     </section>
 
     <!-- 頁籤四：項目與卡片設定 (Settings & Items Management) -->
@@ -276,10 +307,10 @@
       <span class="dock-label" id="dockLabelAdd" style="font-weight: 800; color: var(--forest-green);">記一筆</span>
     </button>
 
-    <!-- 4. 換匯錢包 -->
-    <button class="dock-item bottom-nav-item" data-tab="wallets">
-      <span class="dock-icon" id="dockIconWallets">🪙</span>
-      <span class="dock-label">換匯錢包</span>
+    <!-- 4. 快捷模板 -->
+    <button class="dock-item bottom-nav-item" data-tab="templates">
+      <span class="dock-icon" id="dockIconTemplates">⚡</span>
+      <span class="dock-label">快捷模板</span>
     </button>
 
     <!-- 5. 項目與卡片設定 -->
@@ -960,12 +991,150 @@
     </div>
   </div>
 
+  <!-- ⚡ Modal: 3 秒極簡快速記帳 Sheet (Quick Actions 2.0) -->
+  <div id="quickInputModal" class="modal-overlay quick-input-overlay" style="display: none;">
+    <div class="modal-sheet quick-input-sheet">
+      <div class="quick-sheet-header">
+        <div class="quick-sheet-info">
+          <span class="quick-sheet-icon" id="quickSheetIcon">🥤</span>
+          <div>
+            <div class="quick-sheet-title" id="quickSheetTitle">超商補給</div>
+            <div class="quick-sheet-subtitle" id="quickSheetSubtitle">JPY · 現金 · 全家</div>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="closeQuickInputModalBtn">✕</button>
+      </div>
+
+      <!-- 金額輸入大框 -->
+      <div class="quick-amount-container">
+        <span class="quick-currency-symbol" id="quickCurrencySymbol">¥</span>
+        <input type="number" id="quickAmountInput" class="quick-amount-input" placeholder="0" inputmode="decimal" autofocus>
+      </div>
+      <div class="quick-converted-preview" id="quickConvertedPreview">≈ NT$0</div>
+
+      <!-- 快速加額按鈕組 -->
+      <div class="quick-chips-row" id="quickChipsRow">
+        <button type="button" class="quick-chip-btn" data-add="100">+100</button>
+        <button type="button" class="quick-chip-btn" data-add="500">+500</button>
+        <button type="button" class="quick-chip-btn" data-add="1000">+1,000</button>
+        <button type="button" class="quick-chip-btn" data-add="5000">+5,000</button>
+      </div>
+
+      <!-- 備註微調選填 -->
+      <div style="margin-top: 10px;">
+        <input type="text" id="quickNotesInput" class="quick-notes-input" placeholder="備註（選填，如：7-11 咖啡與冰品）">
+      </div>
+
+      <!-- 操作按鈕 -->
+      <div class="quick-sheet-actions" style="margin-top: 12px; display: flex; gap: 8px;">
+        <button type="button" id="btnQuickSaveSubmit" class="btn-primary" style="flex: 1; padding: 12px 16px; font-size: 1.05rem; font-weight: 800; border-radius: 14px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
+          ✓ 完成記帳 (3秒)
+        </button>
+        <button type="button" id="btnQuickExpandFull" class="btn-secondary" style="padding: 12px 14px; font-size: 0.85rem; border-radius: 14px; white-space: nowrap;" title="展開完整設定">
+          ⚙️ 更多
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🛡️ 3 秒極速記帳安全氣囊 Toast -->
+  <div id="quickUndoToast" class="quick-undo-toast" style="display: none;">
+    <div class="toast-content">
+      <span class="toast-check">✓</span>
+      <span class="toast-text" id="quickUndoToastText">已記帳 🥤 超商補給 ¥600</span>
+    </div>
+    <div class="toast-actions">
+      <button type="button" id="btnQuickUndo" class="toast-btn-undo">↩ 撤銷</button>
+      <button type="button" id="btnQuickEdit" class="toast-btn-edit">✏️ 編輯</button>
+    </div>
+    <div class="toast-timer-bar" id="quickUndoTimerBar"></div>
+  </div>
+
+  <!-- ⚡ Modal: 自訂快捷模板 (新增 / 編輯) -->
+  <div id="quickTemplateModal" class="modal-overlay" style="display: none;">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h3 id="quickTemplateModalTitle" style="font-size: 1.1rem; font-weight: 800; color: var(--forest-green);">
+          ⚡ 設定快捷模板
+        </h3>
+        <button type="button" class="btn-close-modal" id="closeQuickTemplateModalBtn">✕</button>
+      </div>
+
+      <form id="quickTemplateForm" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+        <input type="hidden" id="tplFormId">
+
+        <div style="display: flex; gap: 10px;">
+          <div style="width: 70px;">
+            <label class="form-label">圖示</label>
+            <input type="text" id="tplFormIcon" class="form-input" style="text-align: center; font-size: 1.3rem;" value="🥤" required>
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label">模板名稱</label>
+            <input type="text" id="tplFormTitle" class="form-input" placeholder="例如：超商補給" required>
+          </div>
+        </div>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div>
+            <label class="form-label">支出類別</label>
+            <select id="tplFormCategory" class="form-input"></select>
+          </div>
+          <div>
+            <label class="form-label">幣別規則</label>
+            <select id="tplFormCurrencyRule" class="form-input">
+              <option value="trip_local">當地貨幣 (自適應)</option>
+              <option value="base">基準台幣 (TWD)</option>
+              <option value="last_used">記住上次幣別</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div>
+            <label class="form-label">支付工具規則</label>
+            <select id="tplFormPaymentMode" class="form-input">
+              <option value="remember_last">記住上次使用卡片</option>
+              <option value="fixed">固定指定卡片/現金</option>
+            </select>
+          </div>
+          <div id="tplFixedPaymentWrap" style="display: none;">
+            <label class="form-label">固定支付卡片</label>
+            <select id="tplFormFixedPayment" class="form-input"></select>
+          </div>
+        </div>
+
+        <div>
+          <label class="form-label">消費歸屬對象 (誰享受這筆花費)</label>
+          <select id="tplFormBeneficiaryRule" class="form-input">
+            <option value="all">👨‍👩‍👧‍👦 全員分攤</option>
+            <option value="adults">👫 僅大人分攤</option>
+            <option value="kids">👶 僅小孩分攤</option>
+            <option value="current_user">🙋 僅我自己</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="form-label">預設備註 (選填)</label>
+          <input type="text" id="tplFormNotes" class="form-input" placeholder="例如：買水、零食點心">
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+          <button type="button" id="btnDeleteTemplate" class="btn-danger" style="display: none; margin-right: auto; padding: 8px 12px; font-size: 0.82rem; border-radius: 8px; background: #FEE2E2; color: #DC2626; border: none; cursor: pointer;">
+            🗑️ 刪除
+          </button>
+          <button type="button" class="btn-secondary" id="cancelQuickTemplateBtn">取消</button>
+          <button type="submit" class="btn-primary">儲存模板</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- 浮動提示 Toast -->
   <div id="toast" class="toast-popup">
     <span id="toastIcon" class="toast-icon">✨</span>
     <span id="toastMsg" class="toast-msg">提示訊息</span>
   </div>
 
-  <script type="module" src="./js/app.js?v=20260926_settings_v3"></script>
+  <script type="module" src="./js/app.js?v=20261001_quickactions_v2"></script>
 </body>
 </html>

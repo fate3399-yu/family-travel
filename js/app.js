@@ -3,7 +3,25 @@
  * 支援多帳本管理、自訂信用卡/交通卡/行動支付工具、即時折合台幣轉換、皮克敏夥伴配置與結算報告
  */
 
-import { CURRENCIES, CATEGORIES, PAYMENT_CATEGORIES, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS, PIKMIN_TYPES, ACNH_TYPES, createTrip, createTransaction, getPresetPaymentItemsForCurrency, getPresetCitiesForCurrency, getPresetTagsForCurrency } from './models.js';
+import {
+  CURRENCIES,
+  CATEGORIES,
+  PAYMENT_CATEGORIES,
+  DEFAULT_PAYMENT_ITEMS,
+  DEFAULT_TAGS,
+  DEFAULT_QUICK_TEMPLATES,
+  createQuickTemplate,
+  resolveBeneficiariesForRule,
+  resolvePaymentItemForRule,
+  resolveCurrencyForRule,
+  PIKMIN_TYPES,
+  ACNH_TYPES,
+  createTrip,
+  createTransaction,
+  getPresetPaymentItemsForCurrency,
+  getPresetCitiesForCurrency,
+  getPresetTagsForCurrency
+} from './models.js';
 import { Storage } from './storage.js';
 import { calculateTripSummary, generateFinalTripReport, toBaseAmount } from './calculations.js';
 import { savePhoto, getPhoto } from './db.js';
@@ -43,6 +61,9 @@ let timelineSearchKeyword = '';
 let currentPhotoAttachment = null; // { file, base64 }
 let currentChartTab = 'pie'; // 'pie' | 'bar' | 'member'
 let currentPaymentCategoryFilter = 'all'; // 'all' | 'credit_card' | 'transit_card' | 'mobile_pay' | 'cash' | 'bank_transfer'
+let currentQuickContext = null; // { template, fromTxOrRecent, resolved }
+let quickUndoTimeout = null;
+let lastQuickRecordedTx = null;
 
 // DOM 元素快取
 const el = {
@@ -81,7 +102,56 @@ const el = {
   tabTimeline: document.getElementById('tabTimeline'),
   tabAnalytics: document.getElementById('tabAnalytics'),
   tabWallets: document.getElementById('tabWallets'),
+  tabTemplates: document.getElementById('tabTemplates') || document.getElementById('tabWallets'),
   tabSettings: document.getElementById('tabSettings'),
+
+  // ⚡ Quick Actions 2.0 快捷記帳專區元素
+  quickActionsCard: document.getElementById('quickActionsCard'),
+  quickTemplatesContainer: document.getElementById('quickTemplatesContainer'),
+  recentActionsRow: document.getElementById('recentActionsRow'),
+  recentActionsContainer: document.getElementById('recentActionsContainer'),
+  btnManageQuickTemplates: document.getElementById('btnManageQuickTemplates'),
+  tabTemplatesList: document.getElementById('tabTemplatesList'),
+  btnAddCustomTemplateBtn: document.getElementById('btnAddCustomTemplateBtn'),
+
+  // ⚡ 3 秒極速記帳 Sheet
+  quickInputModal: document.getElementById('quickInputModal'),
+  quickSheetIcon: document.getElementById('quickSheetIcon'),
+  quickSheetTitle: document.getElementById('quickSheetTitle'),
+  quickSheetSubtitle: document.getElementById('quickSheetSubtitle'),
+  quickAmountInput: document.getElementById('quickAmountInput'),
+  quickCurrencySymbol: document.getElementById('quickCurrencySymbol'),
+  quickConvertedPreview: document.getElementById('quickConvertedPreview'),
+  quickChipsRow: document.getElementById('quickChipsRow'),
+  quickNotesInput: document.getElementById('quickNotesInput'),
+  btnQuickSaveSubmit: document.getElementById('btnQuickSaveSubmit'),
+  btnQuickExpandFull: document.getElementById('btnQuickExpandFull'),
+  closeQuickInputModalBtn: document.getElementById('closeQuickInputModalBtn'),
+
+  // 🛡️ 3 秒安全氣囊 Toast
+  quickUndoToast: document.getElementById('quickUndoToast'),
+  quickUndoToastText: document.getElementById('quickUndoToastText'),
+  btnQuickUndo: document.getElementById('btnQuickUndo'),
+  btnQuickEdit: document.getElementById('btnQuickEdit'),
+  quickUndoTimerBar: document.getElementById('quickUndoTimerBar'),
+
+  // ⚡ 快捷模板編輯 Modal
+  quickTemplateModal: document.getElementById('quickTemplateModal'),
+  quickTemplateForm: document.getElementById('quickTemplateForm'),
+  quickTemplateModalTitle: document.getElementById('quickTemplateModalTitle'),
+  closeQuickTemplateModalBtn: document.getElementById('closeQuickTemplateModalBtn'),
+  cancelQuickTemplateBtn: document.getElementById('cancelQuickTemplateBtn'),
+  btnDeleteTemplate: document.getElementById('btnDeleteTemplate'),
+  tplFormId: document.getElementById('tplFormId'),
+  tplFormIcon: document.getElementById('tplFormIcon'),
+  tplFormTitle: document.getElementById('tplFormTitle'),
+  tplFormCategory: document.getElementById('tplFormCategory'),
+  tplFormCurrencyRule: document.getElementById('tplFormCurrencyRule'),
+  tplFormPaymentMode: document.getElementById('tplFormPaymentMode'),
+  tplFixedPaymentWrap: document.getElementById('tplFixedPaymentWrap'),
+  tplFormFixedPayment: document.getElementById('tplFormFixedPayment'),
+  tplFormBeneficiaryRule: document.getElementById('tplFormBeneficiaryRule'),
+  tplFormNotes: document.getElementById('tplFormNotes'),
 
   timelineContainer: document.getElementById('timelineContainer'),
   timelineSearchInput: document.getElementById('timelineSearchInput'),
@@ -1172,6 +1242,7 @@ function renderTimelineFilters() {
  * 渲染旅行時間軸 (Timeline，支援搜尋關鍵字、分類與城市篩選)
  */
 function renderTimeline() {
+  renderQuickActions();
   el.timelineContainer.innerHTML = '';
 
   let list = currentTransactions.filter((tx) => !tx.type || tx.type === 'expense');
@@ -1350,7 +1421,10 @@ function renderTimeline() {
         <div class="tx-content">
           <div class="tx-primary-line">
             <span class="tx-title">${tx.notes || cat.label}</span>
-            <span class="tx-amount">${curr.symbol}${formatNumber(tx.amount)}</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="tx-amount">${curr.symbol}${formatNumber(tx.amount)}</span>
+              <button type="button" class="tx-action-copy" title="複製此筆快速記帳" data-copy-id="${tx.id}">📋 複製</button>
+            </div>
           </div>
           <div class="tx-secondary-line">
             <div class="tx-badges">
@@ -1366,6 +1440,25 @@ function renderTimeline() {
         </div>
         ${thumbHtml}
       `;
+
+      // 複製記帳按鈕監聽
+      const copyBtn = card.querySelector(`[data-copy-id="${tx.id}"]`);
+      if (copyBtn) {
+        copyBtn.onclick = (e) => {
+          e.stopPropagation();
+          duplicateTransaction(tx, e);
+        };
+      }
+
+      // 長按快速複製手勢 (600ms)
+      let pressTimer = null;
+      card.addEventListener('touchstart', (e) => {
+        pressTimer = setTimeout(() => {
+          duplicateTransaction(tx, e);
+        }, 600);
+      }, { passive: true });
+      card.addEventListener('touchend', () => clearTimeout(pressTimer));
+      card.addEventListener('touchmove', () => clearTimeout(pressTimer));
 
       card.onclick = async () => {
         if (tx.photoId) {
@@ -1994,15 +2087,592 @@ function renderAnalytics() {
   switchChartTab(currentChartTab);
 }
 
+// ==========================================================================
+// ⚡ Quick Actions 2.0 (快捷記帳、常用模板、最近使用、複製與 3 秒安全氣囊)
+// ==========================================================================
+
+/**
+ * 渲染時間軸頂部的快捷記帳專區 (常用模板膠囊 ＋ 智慧最近使用列)
+ */
+function renderQuickActions() {
+  if (!el.quickTemplatesContainer) return;
+  el.quickTemplatesContainer.innerHTML = '';
+
+  const templates = Storage.getQuickTemplates();
+
+  // 1. 常用模板膠囊
+  templates.forEach((tpl) => {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'quick-template-pill';
+    pill.innerHTML = `
+      <span class="pill-icon">${tpl.icon}</span>
+      <span>${tpl.title}</span>
+      ${tpl.isPinned ? '<span class="pill-pin" title="已釘選在最前">📌</span>' : ''}
+    `;
+    pill.onclick = (e) => {
+      e.preventDefault();
+      openQuickInput(tpl);
+    };
+    el.quickTemplatesContainer.appendChild(pill);
+  });
+
+  // 額外放置「➕ 自訂」膠囊
+  const addPill = document.createElement('button');
+  addPill.type = 'button';
+  addPill.className = 'quick-template-pill';
+  addPill.style.cssText = 'border-style: dashed; color: var(--forest-green); background: #F1F6F0;';
+  addPill.innerHTML = `<span>➕</span><span>自訂</span>`;
+  addPill.onclick = (e) => {
+    e.preventDefault();
+    openQuickTemplateModal(null);
+  };
+  el.quickTemplatesContainer.appendChild(addPill);
+
+  // 2. 智慧最近使用 (Recent Actions)
+  if (el.recentActionsContainer && el.recentActionsRow) {
+    const recent = Storage.getRecentActions();
+    if (recent.length > 0) {
+      el.recentActionsContainer.innerHTML = '';
+      recent.forEach((item) => {
+        const rPill = document.createElement('button');
+        rPill.type = 'button';
+        rPill.className = 'recent-action-pill';
+        const sym = CURRENCIES[item.currency]?.symbol || '';
+        rPill.innerHTML = `
+          <span>${item.icon || '⚡'}</span>
+          <span>${item.title}</span>
+          <span class="recent-amt">${sym}${formatNumber(item.amount)}</span>
+        `;
+        rPill.onclick = (e) => {
+          e.preventDefault();
+          openQuickInput(null, item);
+        };
+        el.recentActionsContainer.appendChild(rPill);
+      });
+      el.recentActionsRow.style.display = 'flex';
+    } else {
+      el.recentActionsRow.style.display = 'none';
+    }
+  }
+}
+
+/**
+ * 開啟 3 秒極速記帳輸入 Sheet (支援常用模板或來自複製紀錄)
+ */
+function openQuickInput(template = null, fromTxOrRecent = null) {
+  if (!currentTrip) return;
+
+  let title = '快速記帳';
+  let icon = '⚡';
+  let category = 'food';
+  let currency = currentTrip.targetCurrency || 'JPY';
+  let paymentItemId = null;
+  let paymentItemName = '';
+  let paymentMethod = 'cash';
+  let payerId = currentTrip.members?.[0]?.id || 'm_me';
+  let beneficiaryIds = ['all'];
+  let tags = [];
+  let defaultNotes = '';
+  let initialAmount = '';
+
+  const tripPaymentItems = Storage.getPaymentItemsForTrip(currentTrip);
+
+  if (template) {
+    title = template.title;
+    icon = template.icon || '⚡';
+    category = template.category || 'food';
+    currency = resolveCurrencyForRule(template.currencyRule, currentTrip);
+
+    const resolvedPItem = resolvePaymentItemForRule(template.paymentRule, currentTrip);
+    paymentItemId = resolvedPItem?.id || null;
+    paymentItemName = resolvedPItem?.name || '現金';
+    paymentMethod = resolvedPItem?.category || 'cash';
+
+    beneficiaryIds = resolveBeneficiariesForRule(template.beneficiaryRule, currentTrip, payerId);
+    tags = Array.isArray(template.tags) ? [...template.tags] : [];
+    defaultNotes = template.defaultNotes || '';
+  } else if (fromTxOrRecent) {
+    const cat = CATEGORIES[fromTxOrRecent.category] || CATEGORIES.other;
+    title = fromTxOrRecent.notes || fromTxOrRecent.title || cat.label || '支出';
+    icon = fromTxOrRecent.icon || cat.icon || '⚡';
+    category = fromTxOrRecent.category || 'food';
+    currency = fromTxOrRecent.currency || currentTrip.targetCurrency || 'JPY';
+
+    paymentItemId = fromTxOrRecent.paymentItemId || null;
+    const matchedItem = tripPaymentItems.find((p) => p.id === paymentItemId);
+    paymentItemName = matchedItem ? matchedItem.name : (fromTxOrRecent.paymentItemName || '現金');
+    paymentMethod = matchedItem ? (matchedItem.category || 'cash') : (fromTxOrRecent.paymentMethod || 'cash');
+
+    payerId = fromTxOrRecent.payerId || payerId;
+    beneficiaryIds = Array.isArray(fromTxOrRecent.beneficiaryIds) ? [...fromTxOrRecent.beneficiaryIds] : ['all'];
+    tags = Array.isArray(fromTxOrRecent.tags) ? [...fromTxOrRecent.tags] : [];
+    defaultNotes = fromTxOrRecent.notes || fromTxOrRecent.title || '';
+    if (fromTxOrRecent.amount) {
+      initialAmount = String(fromTxOrRecent.amount);
+    }
+  }
+
+  // 固化匯率
+  let rate = 1;
+  if (currency === currentTrip.baseCurrency) {
+    rate = 1;
+  } else {
+    rate = (fromTxOrRecent && fromTxOrRecent.exchangeRate)
+      ? Number(fromTxOrRecent.exchangeRate)
+      : (currentTrip.defaultExchangeRate || CURRENCIES[currency]?.defaultRate || 0.21);
+  }
+
+  currentQuickContext = {
+    template,
+    fromTxOrRecent,
+    resolved: {
+      title,
+      icon,
+      category,
+      currency,
+      paymentItemId,
+      paymentItemName,
+      paymentMethod,
+      payerId,
+      beneficiaryIds,
+      exchangeRate: rate,
+      tags,
+      notes: defaultNotes
+    }
+  };
+
+  // 更新 Sheet UI
+  if (el.quickSheetIcon) el.quickSheetIcon.textContent = icon;
+  if (el.quickSheetTitle) el.quickSheetTitle.textContent = title;
+
+  const bLabel = getBeneficiaryRuleDisplay(beneficiaryIds);
+  if (el.quickSheetSubtitle) {
+    el.quickSheetSubtitle.textContent = `${currency} · ${paymentItemName} · ${bLabel}`;
+  }
+
+  const sym = CURRENCIES[currency]?.symbol || currency;
+  if (el.quickCurrencySymbol) el.quickCurrencySymbol.textContent = sym;
+  if (el.quickAmountInput) {
+    el.quickAmountInput.value = initialAmount;
+  }
+  if (el.quickNotesInput) {
+    el.quickNotesInput.value = defaultNotes;
+  }
+
+  updateQuickConvertedPreview();
+
+  if (el.quickInputModal) {
+    el.quickInputModal.style.display = 'flex';
+    setTimeout(() => {
+      if (el.quickAmountInput) {
+        el.quickAmountInput.focus();
+        el.quickAmountInput.select();
+      }
+    }, 80);
+  }
+}
+
+function updateQuickConvertedPreview() {
+  if (!el.quickConvertedPreview || !currentQuickContext) return;
+  const amt = Number(el.quickAmountInput?.value || 0);
+  const rate = currentQuickContext.resolved.exchangeRate || 1;
+  const baseAmt = Math.round(amt * rate);
+  const baseSym = CURRENCIES[currentTrip?.baseCurrency || 'TWD']?.symbol || 'NT$';
+  el.quickConvertedPreview.textContent = `≈ ${baseSym}${formatNumber(baseAmt)}`;
+}
+
+function getBeneficiaryRuleDisplay(bIds = ['all']) {
+  if (!bIds || bIds.includes('all')) return '全家分攤';
+  if (!currentTrip || !currentTrip.members) return '指定成員';
+  const names = currentTrip.members.filter((m) => bIds.includes(m.id)).map((m) => m.name);
+  return names.length > 0 ? names.join('、') : '全家分攤';
+}
+
+/**
+ * 提交 3 秒極速記帳
+ */
+async function submitQuickAction() {
+  if (!currentTrip || !currentQuickContext) return;
+
+  const amt = Number(el.quickAmountInput?.value);
+  if (isNaN(amt) || amt <= 0) {
+    if (el.quickAmountInput) {
+      el.quickAmountInput.focus();
+      el.quickAmountInput.classList.add('shake');
+      setTimeout(() => el.quickAmountInput.classList.remove('shake'), 400);
+    }
+    showToast('請輸入有效金額！');
+    return;
+  }
+
+  const notesText = el.quickNotesInput?.value.trim() || currentQuickContext.resolved.notes || currentQuickContext.resolved.title;
+  const r = currentQuickContext.resolved;
+
+  const tx = createTransaction({
+    tripId: currentTrip.id,
+    type: 'expense',
+    amount: amt,
+    currency: r.currency,
+    exchangeRate: r.exchangeRate,
+    category: r.category,
+    paymentMethod: r.paymentMethod,
+    paymentItemId: r.paymentItemId,
+    paymentItemName: r.paymentItemName,
+    city: currentTrip.cities?.[0] || '當地',
+    datetime: getLocalIsoDatetime(),
+    notes: notesText,
+    payerId: r.payerId,
+    beneficiaryIds: r.beneficiaryIds,
+    tags: r.tags || [],
+    isPrepaid: false
+  });
+
+  currentTransactions.unshift(tx);
+  Storage.saveTransactions(currentTrip.id, currentTransactions);
+
+  // 雲端同步推播
+  const family = getCurrentFamily();
+  const familyId = family ? (family.id || family.familyId) : null;
+  if (familyId) {
+    saveCloudTransaction(familyId, tx);
+  }
+
+  // 累加模板使用次數並記憶本次使用的卡片
+  if (currentQuickContext.template) {
+    Storage.incrementTemplateUsage(currentQuickContext.template.id, r.paymentItemId);
+  }
+
+  // 記錄至智慧最近使用 (Recent Actions)
+  Storage.recordRecentAction({
+    title: notesText,
+    icon: r.icon,
+    amount: amt,
+    currency: r.currency,
+    category: r.category,
+    paymentItemId: r.paymentItemId,
+    paymentItemName: r.paymentItemName,
+    paymentMethod: r.paymentMethod,
+    payerId: r.payerId,
+    beneficiaryIds: r.beneficiaryIds,
+    exchangeRate: r.exchangeRate,
+    tags: r.tags,
+    notes: notesText
+  });
+
+  closeQuickInputModal();
+
+  renderOverview();
+  renderTimeline();
+
+  // 🛡️ 觸發 3 秒安全氣囊 Toast
+  showQuickUndoToast(tx);
+}
+
+function closeQuickInputModal() {
+  if (el.quickInputModal) {
+    el.quickInputModal.style.display = 'none';
+  }
+  currentQuickContext = null;
+}
+
+/**
+ * 🛡️ 3 秒安全氣囊 Toast (可撤銷/編輯)
+ */
+function showQuickUndoToast(tx) {
+  if (!el.quickUndoToast) return;
+  if (quickUndoTimeout) {
+    clearTimeout(quickUndoTimeout);
+  }
+  lastQuickRecordedTx = tx;
+
+  const sym = CURRENCIES[tx.currency]?.symbol || '';
+  if (el.quickUndoToastText) {
+    el.quickUndoToastText.textContent = `已記帳 ${tx.notes || '支出'} ${sym}${formatNumber(tx.amount)}`;
+  }
+
+  if (el.quickUndoTimerBar) {
+    el.quickUndoTimerBar.style.animation = 'none';
+    void el.quickUndoTimerBar.offsetWidth; // 強制重繪
+    el.quickUndoTimerBar.style.animation = 'countdownBar 3.5s linear forwards';
+  }
+
+  el.quickUndoToast.style.display = 'flex';
+
+  quickUndoTimeout = setTimeout(() => {
+    if (el.quickUndoToast) {
+      el.quickUndoToast.style.display = 'none';
+    }
+    lastQuickRecordedTx = null;
+  }, 3500);
+}
+
+function handleQuickUndo() {
+  if (!lastQuickRecordedTx || !currentTrip) return;
+  const txId = lastQuickRecordedTx.id;
+
+  currentTransactions = currentTransactions.filter((t) => t.id !== txId);
+  Storage.saveTransactions(currentTrip.id, currentTransactions);
+
+  const family = getCurrentFamily();
+  const familyId = family ? (family.id || family.familyId) : null;
+  if (familyId) {
+    deleteCloudTransaction(familyId, currentTrip.id, txId).catch(() => {});
+  }
+
+  if (el.quickUndoToast) {
+    el.quickUndoToast.style.display = 'none';
+  }
+  if (quickUndoTimeout) clearTimeout(quickUndoTimeout);
+  lastQuickRecordedTx = null;
+
+  showToast('已撤銷該筆記帳');
+  renderOverview();
+  renderTimeline();
+}
+
+function handleQuickEdit() {
+  if (!lastQuickRecordedTx) return;
+  const targetTx = lastQuickRecordedTx;
+  if (el.quickUndoToast) el.quickUndoToast.style.display = 'none';
+  if (quickUndoTimeout) clearTimeout(quickUndoTimeout);
+  lastQuickRecordedTx = null;
+
+  openEditExpenseModal(targetTx);
+}
+
+/**
+ * 從 Quick Sheet 展開進入完整記帳 Modal
+ */
+function expandQuickToFullModal() {
+  if (!currentQuickContext) return;
+  const r = currentQuickContext.resolved;
+  const currentAmt = el.quickAmountInput?.value || '';
+  const currentNotes = el.quickNotesInput?.value || r.notes || '';
+
+  closeQuickInputModal();
+
+  openAddExpenseModal();
+
+  if (el.expenseAmount) el.expenseAmount.value = currentAmt;
+  if (el.expenseNotes) el.expenseNotes.value = currentNotes;
+  if (el.expenseCurrency) el.expenseCurrency.value = r.currency;
+  if (el.expenseCategory) el.expenseCategory.value = r.category;
+  if (el.expensePaymentMethod) el.expensePaymentMethod.value = r.paymentMethod;
+  if (el.expensePaymentItemSelect && r.paymentItemId) {
+    el.expensePaymentItemSelect.value = r.paymentItemId;
+  }
+  if (el.expensePayer) el.expensePayer.value = r.payerId;
+
+  if (Array.isArray(r.beneficiaryIds)) {
+    currentBeneficiaryIds = [...r.beneficiaryIds];
+    renderBeneficiaryChips();
+  }
+
+  if (Array.isArray(r.tags)) {
+    currentSelectedTags = [...r.tags];
+    renderSelectedTagsBadges();
+  }
+
+  updateConvertedPreview();
+}
+
+/**
+ * 📋 複製上一筆快速記帳
+ */
+function duplicateTransaction(tx, e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  openQuickInput(null, tx);
+}
+
+/**
+ * 🌟 渲染快捷模板管理頁面 (Tab Templates)
+ */
+function renderTemplatesTab() {
+  if (!el.tabTemplatesList) return;
+  el.tabTemplatesList.innerHTML = '';
+
+  const templates = Storage.getQuickTemplates();
+  const systemTemplates = templates.filter((t) => t.isSystemDefault);
+  const customTemplates = templates.filter((t) => !t.isSystemDefault);
+
+  const createGroup = (title, items) => {
+    if (items.length === 0) return;
+    const groupWrap = document.createElement('div');
+    groupWrap.style.marginBottom = '14px';
+
+    const groupHeader = document.createElement('div');
+    groupHeader.style.cssText = 'font-size: 0.82rem; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;';
+    groupHeader.innerHTML = `<span>${title} (${items.length})</span>`;
+    groupWrap.appendChild(groupHeader);
+
+    const listContainer = document.createElement('div');
+    listContainer.className = 'settings-templates-list';
+
+    items.forEach((tpl) => {
+      const card = document.createElement('div');
+      card.className = 'tpl-manage-card';
+
+      const cat = CATEGORIES[tpl.category] || CATEGORIES.other;
+      const bRuleText = tpl.beneficiaryRule?.target === 'all'
+        ? '全家'
+        : (tpl.beneficiaryRule?.target === 'kids'
+          ? '小孩'
+          : (tpl.beneficiaryRule?.target === 'adults' ? '大人' : '個人'));
+      const pModeText = tpl.paymentRule?.mode === 'remember_last'
+        ? '記住上次卡片'
+        : (tpl.paymentRule?.fixedPaymentItemId ? '固定卡片' : '每次詢問');
+      const currText = tpl.currencyRule === 'trip_local'
+        ? '當地貨幣'
+        : (tpl.currencyRule === 'base' ? '基準台幣' : '上次幣別');
+
+      card.innerHTML = `
+        <div class="tpl-manage-left">
+          <div class="tpl-manage-icon">${tpl.icon}</div>
+          <div style="flex: 1; min-width: 0;">
+            <div class="tpl-manage-title">
+              <span>${tpl.title}</span>
+              ${tpl.isPinned ? '<span style="font-size: 0.72rem; color: #D97706;" title="已釘選在最前">📌</span>' : ''}
+              <span style="font-size: 0.65rem; background: #EAF3E8; color: var(--forest-green); padding: 1px 6px; border-radius: 999px; font-weight: 700;">${tpl.usageCount || 0}次使用</span>
+            </div>
+            <div class="tpl-manage-subtitle">
+              ${cat.label} · ${currText} · ${pModeText} · ${bRuleText}
+            </div>
+          </div>
+        </div>
+        <div class="tpl-manage-right">
+          <button type="button" class="btn-tpl-icon ${tpl.isPinned ? 'pinned' : ''}" title="${tpl.isPinned ? '取消釘選' : '釘選至最前'}" data-pin-id="${tpl.id}">
+            ${tpl.isPinned ? '📌' : '📍'}
+          </button>
+          <button type="button" class="btn-tpl-icon" title="編輯模板" data-edit-id="${tpl.id}">
+            ✏️
+          </button>
+          <button type="button" class="btn-tpl-icon" title="立即使用此模板記帳" data-use-id="${tpl.id}" style="color: var(--forest-green); font-weight: 800;">
+            ⚡ 記帳
+          </button>
+        </div>
+      `;
+
+      card.querySelector('[data-pin-id]').onclick = (e) => {
+        e.stopPropagation();
+        Storage.togglePinTemplate(tpl.id);
+        renderTemplatesTab();
+        renderQuickActions();
+      };
+
+      card.querySelector('[data-edit-id]').onclick = (e) => {
+        e.stopPropagation();
+        openQuickTemplateModal(tpl);
+      };
+
+      card.querySelector('[data-use-id]').onclick = (e) => {
+        e.stopPropagation();
+        openQuickInput(tpl);
+      };
+
+      listContainer.appendChild(card);
+    });
+
+    groupWrap.appendChild(listContainer);
+    el.tabTemplatesList.appendChild(groupWrap);
+  };
+
+  createGroup('⭐ 系統推薦模板', systemTemplates);
+  createGroup('❤️ 我的自訂快捷', customTemplates);
+
+  // 兼容舊版歷史換匯 Accordion
+  renderWallets();
+}
+
+function openQuickTemplateModal(template = null) {
+  if (!el.quickTemplateModal || !el.quickTemplateForm) return;
+
+  const isEdit = Boolean(template);
+  if (el.quickTemplateModalTitle) {
+    el.quickTemplateModalTitle.textContent = isEdit ? '⚡ 編輯快捷模板' : '⚡ 新增快捷模板';
+  }
+
+  // 填充分類選單
+  if (el.tplFormCategory) {
+    el.tplFormCategory.innerHTML = Object.keys(CATEGORIES).map((key) => {
+      const c = CATEGORIES[key];
+      return `<option value="${c.id}">${c.icon} ${c.label}</option>`;
+    }).join('');
+  }
+
+  // 填充固定卡片清單
+  if (el.tplFormFixedPayment && currentTrip) {
+    const pItems = Storage.getPaymentItemsForTrip(currentTrip);
+    el.tplFormFixedPayment.innerHTML = pItems.map((p) => {
+      return `<option value="${p.id}">${p.icon} ${p.name}</option>`;
+    }).join('');
+  }
+
+  if (el.tplFormId) el.tplFormId.value = template ? template.id : '';
+  if (el.tplFormIcon) el.tplFormIcon.value = template ? template.icon : '🥤';
+  if (el.tplFormTitle) el.tplFormTitle.value = template ? template.title : '';
+  if (el.tplFormCategory) el.tplFormCategory.value = template ? template.category : 'food';
+  if (el.tplFormCurrencyRule) el.tplFormCurrencyRule.value = template ? template.currencyRule : 'trip_local';
+  if (el.tplFormPaymentMode) {
+    el.tplFormPaymentMode.value = template?.paymentRule?.mode || 'remember_last';
+    toggleTplFixedPaymentWrap();
+  }
+  if (el.tplFormFixedPayment && template?.paymentRule?.fixedPaymentItemId) {
+    el.tplFormFixedPayment.value = template.paymentRule.fixedPaymentItemId;
+  }
+  if (el.tplFormBeneficiaryRule) {
+    el.tplFormBeneficiaryRule.value = template?.beneficiaryRule?.target || 'all';
+  }
+  if (el.tplFormNotes) el.tplFormNotes.value = template ? (template.defaultNotes || '') : '';
+
+  if (el.btnDeleteTemplate) {
+    if (isEdit && !template.isSystemDefault) {
+      el.btnDeleteTemplate.style.display = 'block';
+      el.btnDeleteTemplate.onclick = () => {
+        if (confirm(`確定要刪除「${template.title}」模板嗎？`)) {
+          Storage.deleteQuickTemplate(template.id);
+          closeQuickTemplateModal();
+          renderTemplatesTab();
+          renderQuickActions();
+          showToast('已刪除模板');
+        }
+      };
+    } else {
+      el.btnDeleteTemplate.style.display = 'none';
+    }
+  }
+
+  el.quickTemplateModal.style.display = 'flex';
+}
+
+function closeQuickTemplateModal() {
+  if (el.quickTemplateModal) {
+    el.quickTemplateModal.style.display = 'none';
+  }
+}
+
+function toggleTplFixedPaymentWrap() {
+  if (!el.tplFixedPaymentWrap || !el.tplFormPaymentMode) return;
+  el.tplFixedPaymentWrap.style.display = el.tplFormPaymentMode.value === 'fixed' ? 'block' : 'none';
+}
+
 function renderActiveTab() {
   el.tabTimeline.style.display = activeTab === 'timeline' ? 'block' : 'none';
   el.tabAnalytics.style.display = activeTab === 'analytics' ? 'block' : 'none';
-  el.tabWallets.style.display = activeTab === 'wallets' ? 'block' : 'none';
+  if (el.tabTemplates) {
+    el.tabTemplates.style.display = (activeTab === 'templates' || activeTab === 'wallets') ? 'block' : 'none';
+  } else if (el.tabWallets) {
+    el.tabWallets.style.display = (activeTab === 'wallets' || activeTab === 'templates') ? 'block' : 'none';
+  }
   if (el.tabSettings) el.tabSettings.style.display = activeTab === 'settings' ? 'block' : 'none';
 
   // 同步更新底部導航按鈕 active 樣式
   el.bottomNavItems.forEach((btn) => {
-    if (btn.getAttribute('data-tab') === activeTab) {
+    const tabName = btn.getAttribute('data-tab');
+    if (tabName === activeTab || (tabName === 'templates' && activeTab === 'wallets') || (tabName === 'wallets' && activeTab === 'templates')) {
       btn.classList.add('active');
     } else {
       btn.classList.remove('active');
@@ -2011,7 +2681,7 @@ function renderActiveTab() {
 
   if (activeTab === 'timeline') renderTimeline();
   if (activeTab === 'analytics') renderAnalytics();
-  if (activeTab === 'wallets') renderWallets();
+  if (activeTab === 'templates' || activeTab === 'wallets') renderTemplatesTab();
   if (activeTab === 'settings') renderSettings();
 }
 
@@ -3153,6 +3823,100 @@ function bindEvents() {
   if (el.btnSwitchTrip) el.btnSwitchTrip.onclick = openTripManager;
   if (el.currentTripBadge) el.currentTripBadge.onclick = openTripManager;
   if (el.btnUserAuth) el.btnUserAuth.onclick = openAccountModal;
+
+  // ⚡ Quick Actions 2.0 快捷記帳專區監聽
+  if (el.btnManageQuickTemplates) {
+    el.btnManageQuickTemplates.onclick = () => {
+      activeTab = 'templates';
+      renderActiveTab();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+  }
+  if (el.btnAddCustomTemplateBtn) {
+    el.btnAddCustomTemplateBtn.onclick = () => openQuickTemplateModal(null);
+  }
+  if (el.closeQuickInputModalBtn) {
+    el.closeQuickInputModalBtn.onclick = closeQuickInputModal;
+  }
+  if (el.btnQuickSaveSubmit) {
+    el.btnQuickSaveSubmit.onclick = submitQuickAction;
+  }
+  if (el.btnQuickExpandFull) {
+    el.btnQuickExpandFull.onclick = expandQuickToFullModal;
+  }
+  if (el.quickAmountInput) {
+    el.quickAmountInput.addEventListener('input', updateQuickConvertedPreview);
+    el.quickAmountInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitQuickAction();
+      }
+    });
+  }
+  if (el.quickChipsRow) {
+    el.quickChipsRow.querySelectorAll('.quick-chip-btn').forEach((chip) => {
+      chip.onclick = () => {
+        const addVal = Number(chip.getAttribute('data-add')) || 0;
+        const curVal = Number(el.quickAmountInput?.value) || 0;
+        if (el.quickAmountInput) {
+          el.quickAmountInput.value = curVal + addVal;
+          updateQuickConvertedPreview();
+        }
+      };
+    });
+  }
+
+  // 🛡️ 3 秒安全氣囊 Toast 撤銷與編輯
+  if (el.btnQuickUndo) {
+    el.btnQuickUndo.onclick = handleQuickUndo;
+  }
+  if (el.btnQuickEdit) {
+    el.btnQuickEdit.onclick = handleQuickEdit;
+  }
+
+  // 快捷模板管理視窗
+  if (el.closeQuickTemplateModalBtn) {
+    el.closeQuickTemplateModalBtn.onclick = closeQuickTemplateModal;
+  }
+  if (el.cancelQuickTemplateBtn) {
+    el.cancelQuickTemplateBtn.onclick = closeQuickTemplateModal;
+  }
+  if (el.tplFormPaymentMode) {
+    el.tplFormPaymentMode.onchange = toggleTplFixedPaymentWrap;
+  }
+  if (el.quickTemplateForm) {
+    el.quickTemplateForm.onsubmit = (e) => {
+      e.preventDefault();
+      const id = el.tplFormId?.value;
+      const tplData = {
+        title: el.tplFormTitle?.value.trim() || '自訂快捷',
+        icon: el.tplFormIcon?.value.trim() || '⚡',
+        category: el.tplFormCategory?.value || 'food',
+        currencyRule: el.tplFormCurrencyRule?.value || 'trip_local',
+        paymentRule: {
+          mode: el.tplFormPaymentMode?.value || 'remember_last',
+          fixedPaymentItemId: el.tplFormPaymentMode?.value === 'fixed' ? el.tplFormFixedPayment?.value : null
+        },
+        beneficiaryRule: {
+          target: el.tplFormBeneficiaryRule?.value || 'all'
+        },
+        defaultNotes: el.tplFormNotes?.value.trim() || ''
+      };
+
+      if (id) {
+        tplData.id = id;
+        Storage.updateQuickTemplate(tplData);
+        showToast('快捷模板已更新！');
+      } else {
+        Storage.addQuickTemplate(tplData);
+        showToast('已建立新快捷模板！');
+      }
+
+      closeQuickTemplateModal();
+      renderTemplatesTab();
+      renderQuickActions();
+    };
+  }
 
   // 👤 帳號 Modal 操作
   if (el.closeAccountModalBtn) {

@@ -2,7 +2,7 @@
  * storage.js - 本地狀態管理、種子資料與「快速記帳記憶」
  */
 
-import { createTrip, createTransaction, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS, getPresetPaymentItemsForCurrency } from './models.js';
+import { createTrip, createTransaction, DEFAULT_PAYMENT_ITEMS, DEFAULT_TAGS, DEFAULT_QUICK_TEMPLATES, createQuickTemplate, getPresetPaymentItemsForCurrency } from './models.js';
 
 const STORAGE_KEYS = {
   TRIPS: 'ft_trips',
@@ -10,7 +10,9 @@ const STORAGE_KEYS = {
   ACTIVE_TRIP_ID: 'ft_active_trip_id',
   LAST_INPUT_CACHE: 'ft_last_input_cache',
   APP_MODE: 'ft_app_mode', // 'standard' (一般模式) | 'travel' (旅行模式)
-  PAYMENT_ITEMS: 'ft_payment_items' // 自訂卡片與支付項目
+  PAYMENT_ITEMS: 'ft_payment_items', // 自訂卡片與支付項目
+  QUICK_TEMPLATES: 'ft_quick_templates', // 快捷記帳模板 (跨帳本共用)
+  RECENT_ACTIONS: 'ft_recent_actions' // 最近使用記帳情境
 };
 
 // 示範預載旅程（東京＋關西家庭旅遊）
@@ -441,5 +443,143 @@ export const Storage = {
     tags = tags.filter((t) => t !== clean);
     this.saveCustomTags(tags);
     return tags;
+  },
+
+  // ⚡ 快捷模板 (Quick Actions 2.0) 管理 - 跨帳本全域通用
+  getQuickTemplates() {
+    const raw = localStorage.getItem(STORAGE_KEYS.QUICK_TEMPLATES);
+    let list = [];
+    if (!raw) {
+      list = DEFAULT_QUICK_TEMPLATES.map((t) => createQuickTemplate(t));
+      this.saveQuickTemplates(list);
+    } else {
+      try {
+        list = JSON.parse(raw);
+        if (!Array.isArray(list) || list.length === 0) {
+          list = DEFAULT_QUICK_TEMPLATES.map((t) => createQuickTemplate(t));
+          this.saveQuickTemplates(list);
+        }
+      } catch (e) {
+        list = DEFAULT_QUICK_TEMPLATES.map((t) => createQuickTemplate(t));
+        this.saveQuickTemplates(list);
+      }
+    }
+
+    // 依「釘選優先 + 使用頻率 (usageCount) 高到低」自動排序
+    return list.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return (Number(b.usageCount) || 0) - (Number(a.usageCount) || 0);
+    });
+  },
+
+  saveQuickTemplates(templates) {
+    localStorage.setItem(STORAGE_KEYS.QUICK_TEMPLATES, JSON.stringify(templates));
+  },
+
+  addQuickTemplate(tplData) {
+    const templates = this.getQuickTemplates();
+    const newTpl = createQuickTemplate({
+      ...tplData,
+      isSystemDefault: false,
+      usageCount: 0
+    });
+    templates.push(newTpl);
+    this.saveQuickTemplates(templates);
+    return newTpl;
+  },
+
+  updateQuickTemplate(tplData) {
+    const templates = this.getQuickTemplates();
+    const idx = templates.findIndex((t) => t.id === tplData.id);
+    if (idx !== -1) {
+      templates[idx] = { ...templates[idx], ...tplData };
+      this.saveQuickTemplates(templates);
+      return templates[idx];
+    }
+    return null;
+  },
+
+  deleteQuickTemplate(templateId) {
+    let templates = this.getQuickTemplates();
+    templates = templates.filter((t) => t.id !== templateId);
+    this.saveQuickTemplates(templates);
+    return templates;
+  },
+
+  incrementTemplateUsage(templateId, usedPaymentItemId = null) {
+    const templates = this.getQuickTemplates();
+    const tpl = templates.find((t) => t.id === templateId);
+    if (tpl) {
+      tpl.usageCount = (Number(tpl.usageCount) || 0) + 1;
+      if (usedPaymentItemId) {
+        if (!tpl.paymentRule) tpl.paymentRule = { mode: 'remember_last' };
+        tpl.paymentRule.lastUsedPaymentItemId = usedPaymentItemId;
+      }
+      this.saveQuickTemplates(templates);
+    }
+    return templates;
+  },
+
+  togglePinTemplate(templateId) {
+    const templates = this.getQuickTemplates();
+    const tpl = templates.find((t) => t.id === templateId);
+    if (tpl) {
+      tpl.isPinned = !tpl.isPinned;
+      this.saveQuickTemplates(templates);
+    }
+    return templates;
+  },
+
+  // 🕘 智慧最近使用 (Recent Actions)
+  getRecentActions() {
+    const raw = localStorage.getItem(STORAGE_KEYS.RECENT_ACTIONS);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  saveRecentActions(actions) {
+    localStorage.setItem(STORAGE_KEYS.RECENT_ACTIONS, JSON.stringify(actions));
+  },
+
+  recordRecentAction(action) {
+    if (!action || !action.amount) return;
+    let list = this.getRecentActions();
+    // 排除雷同情境 (同標題、金額、幣別、卡片)
+    list = list.filter((item) => {
+      const match = item.title === action.title &&
+        Number(item.amount) === Number(action.amount) &&
+        item.currency === action.currency &&
+        item.paymentItemId === action.paymentItemId;
+      return !match;
+    });
+
+    list.unshift({
+      id: 'rec_' + Date.now(),
+      title: action.title || '記帳',
+      icon: action.icon || '⚡',
+      amount: Number(action.amount),
+      currency: action.currency,
+      category: action.category || 'food',
+      paymentItemId: action.paymentItemId,
+      paymentItemName: action.paymentItemName,
+      paymentMethod: action.paymentMethod || 'cash',
+      payerId: action.payerId,
+      beneficiaryIds: action.beneficiaryIds || ['all'],
+      exchangeRate: action.exchangeRate,
+      tags: action.tags || [],
+      notes: action.notes || '',
+      timestamp: Date.now()
+    });
+
+    // 只保留最新 5 筆
+    list = list.slice(0, 5);
+    this.saveRecentActions(list);
+    return list;
   }
 };
