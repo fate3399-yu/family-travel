@@ -1423,10 +1423,7 @@ function renderTimeline() {
         <div class="tx-content">
           <div class="tx-primary-line">
             <span class="tx-title">${tx.notes || cat.label}</span>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span class="tx-amount">${curr.symbol}${formatNumber(tx.amount)}</span>
-              <button type="button" class="tx-action-copy" title="複製此筆快速記帳" data-copy-id="${tx.id}">📋 複製</button>
-            </div>
+            <span class="tx-amount">${curr.symbol}${formatNumber(tx.amount)}</span>
           </div>
           <div class="tx-secondary-line">
             <div class="tx-badges">
@@ -1442,15 +1439,6 @@ function renderTimeline() {
         </div>
         ${thumbHtml}
       `;
-
-      // 複製記帳按鈕監聽
-      const copyBtn = card.querySelector(`[data-copy-id="${tx.id}"]`);
-      if (copyBtn) {
-        copyBtn.onclick = (e) => {
-          e.stopPropagation();
-          duplicateTransaction(tx, e);
-        };
-      }
 
       // 長按快速複製手勢 (600ms)
       let pressTimer = null;
@@ -1473,28 +1461,31 @@ function renderTimeline() {
         openEditExpenseModal(tx);
       };
 
-      // 🌟 包裝外層滑動操作容器 (Swipe to Delete)
+      // 🌟 包裝外層滑動操作容器 (Swipe Right to Copy / Swipe Left to Delete)
       const swipeWrapper = document.createElement('div');
       swipeWrapper.className = 'tx-swipe-wrapper';
 
       const swipeActions = document.createElement('div');
       swipeActions.className = 'tx-swipe-actions';
       swipeActions.innerHTML = `
-        <button type="button" class="tx-swipe-del-btn" aria-label="刪除此筆支出">
-          <span class="tx-swipe-icon">🗑️</span>
-          <span class="tx-swipe-text">刪除</span>
-        </button>
+        <div class="tx-swipe-side tx-swipe-left">
+          <button type="button" class="tx-swipe-btn tx-swipe-copy-btn" aria-label="複製此筆支出">
+            <span class="tx-swipe-icon">📋</span>
+            <span class="tx-swipe-text">複製</span>
+          </button>
+        </div>
+        <div class="tx-swipe-side tx-swipe-right">
+          <button type="button" class="tx-swipe-btn tx-swipe-del-btn" aria-label="刪除此筆支出">
+            <span class="tx-swipe-icon">🗑️</span>
+            <span class="tx-swipe-text">刪除</span>
+          </button>
+        </div>
       `;
-
-      swipeActions.querySelector('.tx-swipe-del-btn').onclick = (e) => {
-        e.stopPropagation();
-        deleteExpenseRecord(tx.id, tx.notes || cat.label);
-      };
 
       swipeWrapper.appendChild(swipeActions);
       swipeWrapper.appendChild(card);
 
-      attachSwipeToDelete(swipeWrapper, card, tx, cat);
+      attachSwipeActions(swipeWrapper, card, tx, cat);
 
       dayGroup.appendChild(swipeWrapper);
     });
@@ -1523,16 +1514,16 @@ function deleteExpenseRecord(txId, txTitle = '') {
 }
 
 /**
- * 🌟 綁定明細卡片向右滑動手勢 (Swipe Right to Delete)
+ * 🌟 綁定明細卡片雙向滑動手勢 (Swipe Right to Copy, Swipe Left to Delete)
  */
-function attachSwipeToDelete(wrapper, card, tx, cat) {
+function attachSwipeActions(wrapper, card, tx, cat) {
   let startX = 0;
   let startY = 0;
   let currentX = 0;
   let currentY = 0;
   let isSwiping = false;
   let isHorizontal = null;
-  let isOpen = false;
+  let openState = null; // null | 'copy' | 'delete'
   let justSwiped = false;
   let isDraggingMouse = false;
   const ACTION_WIDTH = 84;
@@ -1540,20 +1531,48 @@ function attachSwipeToDelete(wrapper, card, tx, cat) {
   const resetCard = () => {
     card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
     card.style.transform = 'translateX(0px)';
-    isOpen = false;
-    wrapper.classList.remove('is-open');
+    openState = null;
+    wrapper.classList.remove('is-open-copy', 'is-open-delete', 'is-swiping-right', 'is-swiping-left');
   };
 
-  const openCard = () => {
+  const openCopy = () => {
     card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
     card.style.transform = `translateX(${ACTION_WIDTH}px)`;
-    isOpen = true;
-    wrapper.classList.add('is-open');
+    openState = 'copy';
+    wrapper.classList.remove('is-open-delete', 'is-swiping-left');
+    wrapper.classList.add('is-open-copy');
   };
+
+  const openDelete = () => {
+    card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
+    card.style.transform = `translateX(-${ACTION_WIDTH}px)`;
+    openState = 'delete';
+    wrapper.classList.remove('is-open-copy', 'is-swiping-right');
+    wrapper.classList.add('is-open-delete');
+  };
+
+  // 綁定兩側按鈕點擊事件
+  const copyBtn = wrapper.querySelector('.tx-swipe-copy-btn');
+  if (copyBtn) {
+    copyBtn.onclick = (e) => {
+      e.stopPropagation();
+      resetCard();
+      duplicateTransaction(tx, e);
+    };
+  }
+
+  const delBtn = wrapper.querySelector('.tx-swipe-del-btn');
+  if (delBtn) {
+    delBtn.onclick = (e) => {
+      e.stopPropagation();
+      resetCard();
+      deleteExpenseRecord(tx.id, tx.notes || cat.label);
+    };
+  }
 
   // 點擊卡片外部時關閉
   const onDocClick = (e) => {
-    if (isOpen && !wrapper.contains(e.target)) {
+    if (openState && !wrapper.contains(e.target)) {
       resetCard();
     }
   };
@@ -1592,35 +1611,50 @@ function attachSwipeToDelete(wrapper, card, tx, cat) {
       isSwiping = true;
       justSwiped = true;
 
-      let targetX = isOpen ? (ACTION_WIDTH + diffX) : diffX;
-      if (targetX < 0) {
-        targetX = targetX * 0.15;
-      } else if (targetX > ACTION_WIDTH + 60) {
-        targetX = ACTION_WIDTH + 60 + (targetX - (ACTION_WIDTH + 60)) * 0.3;
+      const baseX = openState === 'copy' ? ACTION_WIDTH : (openState === 'delete' ? -ACTION_WIDTH : 0);
+      let targetX = baseX + diffX;
+
+      if (targetX > 0) {
+        wrapper.classList.add('is-swiping-right');
+        wrapper.classList.remove('is-swiping-left');
+        if (targetX > ACTION_WIDTH + 45) {
+          targetX = ACTION_WIDTH + 45 + (targetX - (ACTION_WIDTH + 45)) * 0.25;
+        }
+      } else if (targetX < 0) {
+        wrapper.classList.add('is-swiping-left');
+        wrapper.classList.remove('is-swiping-right');
+        if (targetX < -ACTION_WIDTH - 45) {
+          targetX = -ACTION_WIDTH - 45 + (targetX - (-ACTION_WIDTH - 45)) * 0.25;
+        }
       }
+
       card.style.transform = `translateX(${targetX}px)`;
     }
   }, { passive: false });
 
   const onTouchEnd = () => {
-    if (!isSwiping) {
-      return;
-    }
+    if (!isSwiping) return;
     const diffX = currentX - startX;
     card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
 
-    if (!isOpen) {
-      if (diffX > 50) {
-        openCard();
+    if (!openState) {
+      if (diffX > 150) {
+        // 大力右滑：直接複製
+        resetCard();
+        duplicateTransaction(tx);
+      } else if (diffX > 45) {
+        openCopy();
+      } else if (diffX < -45) {
+        openDelete();
       } else {
         resetCard();
       }
-    } else {
-      if (diffX < -20) {
-        resetCard();
-      } else {
-        openCard();
-      }
+    } else if (openState === 'copy') {
+      if (diffX < -20) resetCard();
+      else openCopy();
+    } else if (openState === 'delete') {
+      if (diffX > 20) resetCard();
+      else openDelete();
     }
 
     setTimeout(() => {
@@ -1634,7 +1668,7 @@ function attachSwipeToDelete(wrapper, card, tx, cat) {
 
   // --- 滑鼠拖曳支援 (Mouse Drag Events) ---
   card.addEventListener('mousedown', (e) => {
-    if (e.button !== 0 || e.target.closest('.tx-action-copy')) return;
+    if (e.button !== 0) return;
     isDraggingMouse = true;
     startX = e.clientX;
     startY = e.clientY;
@@ -1648,12 +1682,23 @@ function attachSwipeToDelete(wrapper, card, tx, cat) {
       if (Math.abs(diffX) > 8) {
         isSwiping = true;
         justSwiped = true;
-        let targetX = isOpen ? (ACTION_WIDTH + diffX) : diffX;
-        if (targetX < 0) {
-          targetX = targetX * 0.15;
-        } else if (targetX > ACTION_WIDTH + 60) {
-          targetX = ACTION_WIDTH + 60 + (targetX - (ACTION_WIDTH + 60)) * 0.3;
+        const baseX = openState === 'copy' ? ACTION_WIDTH : (openState === 'delete' ? -ACTION_WIDTH : 0);
+        let targetX = baseX + diffX;
+
+        if (targetX > 0) {
+          wrapper.classList.add('is-swiping-right');
+          wrapper.classList.remove('is-swiping-left');
+          if (targetX > ACTION_WIDTH + 45) {
+            targetX = ACTION_WIDTH + 45 + (targetX - (ACTION_WIDTH + 45)) * 0.25;
+          }
+        } else if (targetX < 0) {
+          wrapper.classList.add('is-swiping-left');
+          wrapper.classList.remove('is-swiping-right');
+          if (targetX < -ACTION_WIDTH - 45) {
+            targetX = -ACTION_WIDTH - 45 + (targetX - (-ACTION_WIDTH - 45)) * 0.25;
+          }
         }
+
         card.style.transform = `translateX(${targetX}px)`;
       }
     };
@@ -1666,13 +1711,26 @@ function attachSwipeToDelete(wrapper, card, tx, cat) {
       if (isSwiping) {
         const diffX = currentX - startX;
         card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
-        if (!isOpen) {
-          if (diffX > 50) openCard();
-          else resetCard();
-        } else {
+
+        if (!openState) {
+          if (diffX > 150) {
+            resetCard();
+            duplicateTransaction(tx);
+          } else if (diffX > 45) {
+            openCopy();
+          } else if (diffX < -45) {
+            openDelete();
+          } else {
+            resetCard();
+          }
+        } else if (openState === 'copy') {
           if (diffX < -20) resetCard();
-          else openCard();
+          else openCopy();
+        } else if (openState === 'delete') {
+          if (diffX > 20) resetCard();
+          else openDelete();
         }
+
         setTimeout(() => {
           justSwiped = false;
           isSwiping = false;
@@ -1691,7 +1749,7 @@ function attachSwipeToDelete(wrapper, card, tx, cat) {
       e.preventDefault();
       return;
     }
-    if (isOpen) {
+    if (openState) {
       e.stopPropagation();
       e.preventDefault();
       resetCard();

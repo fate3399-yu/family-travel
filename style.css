@@ -967,7 +967,7 @@ body {
   border: 1px solid #D5E1D3;
 }
 
-/* 🌟 記帳卡片滑動操作容器 (Swipe to Action) */
+/* 🌟 記帳卡片滑動操作容器 (Swipe to Action: 右滑複製 / 左滑刪除) */
 .tx-swipe-wrapper {
   position: relative;
   overflow: hidden;
@@ -981,21 +981,52 @@ body {
   position: absolute;
   top: 0;
   left: 0;
+  right: 0;
   bottom: 0;
-  width: 100%;
-  background: linear-gradient(135deg, #FF5252 0%, #D32F2F 100%);
   display: flex;
-  align-items: center;
+  justify-content: space-between;
+  align-items: stretch;
   border-radius: 18px;
   z-index: 1;
   pointer-events: none;
+  overflow: hidden;
 }
 
-.tx-swipe-wrapper.is-open .tx-swipe-actions {
+.tx-swipe-side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  pointer-events: none;
+}
+
+.tx-swipe-side.tx-swipe-left {
+  left: 0;
+  justify-content: flex-start;
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+}
+
+.tx-swipe-side.tx-swipe-right {
+  right: 0;
+  justify-content: flex-end;
+  background: linear-gradient(135deg, #FF5252 0%, #D32F2F 100%);
+}
+
+.tx-swipe-wrapper.is-open-copy .tx-swipe-left,
+.tx-swipe-wrapper.is-swiping-right .tx-swipe-left {
   pointer-events: auto;
+  z-index: 2;
 }
 
-.tx-swipe-del-btn {
+.tx-swipe-wrapper.is-open-delete .tx-swipe-right,
+.tx-swipe-wrapper.is-swiping-left .tx-swipe-right {
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.tx-swipe-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1015,7 +1046,7 @@ body {
   user-select: none;
 }
 
-.tx-swipe-del-btn:active {
+.tx-swipe-btn:active {
   transform: scale(0.92);
 }
 
@@ -1024,13 +1055,9 @@ body {
   line-height: 1;
 }
 
-.tx-swipe-wrapper.is-open .tx-card:hover {
-  transform: translateX(84px);
-}
-
 .tx-swipe-wrapper .tx-card {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   width: 100%;
   background: #FFFFFF;
 }
