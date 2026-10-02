@@ -154,6 +154,9 @@ const el = {
   tplFormFixedPayment: document.getElementById('tplFormFixedPayment'),
   tplFormBeneficiaryRule: document.getElementById('tplFormBeneficiaryRule'),
   tplFormNotes: document.getElementById('tplFormNotes'),
+  tplTagSearchInput: document.getElementById('tplTagSearchInput'),
+  btnAddTplCustomTagBtn: document.getElementById('btnAddTplCustomTagBtn'),
+  tplTagChipsSelector: document.getElementById('tplTagChipsSelector'),
 
   timelineContainer: document.getElementById('timelineContainer'),
   timelineSearchInput: document.getElementById('timelineSearchInput'),
@@ -782,7 +785,7 @@ function renderTagChipsSelector(filterText = '', initialActiveTags = null) {
 
   const presetTags = getPresetTagsForCurrency(currentTrip?.targetCurrency || 'JPY', currentTrip?.title || '');
   const customTags = Storage.getCustomTags();
-  const allTags = Array.from(new Set([...presetTags, ...customTags]));
+  const allTags = Array.from(new Set([...presetTags, ...customTags, ...currentSelectedTags]));
 
   const query = (filterText || '').trim().toLowerCase();
   const filtered = query
@@ -822,6 +825,7 @@ function renderTagChipsSelector(filterText = '', initialActiveTags = null) {
           Storage.deleteCustomTag(tag);
           currentSelectedTags.delete(tag);
           renderTagChipsSelector(el.tagSearchInput?.value || '');
+          if (el.tplTagChipsSelector) renderTplTagChipsSelector(el.tplTagSearchInput?.value || '');
         }
       };
       chip.appendChild(delBtn);
@@ -856,6 +860,98 @@ function handleAddNewCustomTag() {
   currentSelectedTags.add(val);
   if (input) input.value = '';
   renderTagChipsSelector('');
+  if (el.tplTagChipsSelector) renderTplTagChipsSelector(el.tplTagSearchInput?.value || '');
+}
+
+let currentTplSelectedTags = new Set();
+
+/**
+ * 🏷️ 快捷模板專用常用標籤選擇器 (支援關鍵字搜尋、自訂新增與複選)
+ */
+function renderTplTagChipsSelector(filterText = '', initialActiveTags = null) {
+  if (!el.tplTagChipsSelector) return;
+  if (initialActiveTags !== null) {
+    currentTplSelectedTags = new Set(initialActiveTags);
+  }
+
+  const presetTags = getPresetTagsForCurrency(currentTrip?.targetCurrency || 'JPY', currentTrip?.title || '');
+  const customTags = Storage.getCustomTags();
+  const allTags = Array.from(new Set([...presetTags, ...customTags, ...currentTplSelectedTags]));
+
+  const query = (filterText || '').trim().toLowerCase();
+  const filtered = query
+    ? allTags.filter((t) => t.toLowerCase().includes(query))
+    : allTags;
+
+  el.tplTagChipsSelector.innerHTML = '';
+
+  if (filtered.length === 0) {
+    const emptyNotice = document.createElement('div');
+    emptyNotice.style.cssText = 'font-size: 0.78rem; color: var(--text-muted); padding: 4px 0;';
+    emptyNotice.textContent = query
+      ? `查無「${query}」標籤，可點擊上方「＋ 新增」直接建立！`
+      : '目前無可用標籤';
+    el.tplTagChipsSelector.appendChild(emptyNotice);
+    return;
+  }
+
+  filtered.forEach((tag) => {
+    const isCustom = customTags.includes(tag);
+    const chip = document.createElement('span');
+    chip.className = `pill-chip-tag ${currentTplSelectedTags.has(tag) ? 'active-tag' : ''}`;
+    chip.dataset.tag = tag;
+
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = `#${tag}`;
+    chip.appendChild(labelSpan);
+
+    if (isCustom) {
+      const delBtn = document.createElement('span');
+      delBtn.className = 'tag-del-btn';
+      delBtn.title = `刪除 #${tag} 標籤`;
+      delBtn.textContent = '×';
+      delBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (confirm(`確定要刪除常用標籤「#${tag}」嗎？`)) {
+          Storage.deleteCustomTag(tag);
+          currentTplSelectedTags.delete(tag);
+          renderTplTagChipsSelector(el.tplTagSearchInput?.value || '');
+          if (el.tagChipsSelector) renderTagChipsSelector(el.tagSearchInput?.value || '');
+        }
+      };
+      chip.appendChild(delBtn);
+    }
+
+    chip.onclick = () => {
+      if (currentTplSelectedTags.has(tag)) {
+        currentTplSelectedTags.delete(tag);
+        chip.classList.remove('active-tag');
+      } else {
+        currentTplSelectedTags.add(tag);
+        chip.classList.add('active-tag');
+      }
+    };
+
+    el.tplTagChipsSelector.appendChild(chip);
+  });
+}
+
+/**
+ * 🏷️ 快捷模板新增自訂標籤
+ */
+function handleAddTplCustomTag() {
+  const input = el.tplTagSearchInput;
+  const val = (input?.value || '').trim().replace(/^#+/, '');
+  if (!val) {
+    alert('請先在輸入框輸入欲新增的標籤名稱喔！');
+    input?.focus();
+    return;
+  }
+  Storage.addCustomTag(val);
+  currentTplSelectedTags.add(val);
+  if (input) input.value = '';
+  renderTplTagChipsSelector('');
+  if (el.tagChipsSelector) renderTagChipsSelector(el.tagSearchInput?.value || '');
 }
 
 /**
@@ -2728,8 +2824,9 @@ function openQuickInput(template = null, fromTxOrRecent = null) {
   if (el.quickSheetTitle) el.quickSheetTitle.textContent = title;
 
   const bLabel = getBeneficiaryRuleDisplay(beneficiaryIds);
+  const tagLabel = (tags && tags.length > 0) ? ` · ${tags.map(t => '#' + t).join(' ')}` : '';
   if (el.quickSheetSubtitle) {
-    el.quickSheetSubtitle.textContent = `${currency} · ${paymentItemName} · ${bLabel}`;
+    el.quickSheetSubtitle.textContent = `${currency} · ${paymentItemName} · ${bLabel}${tagLabel}`;
   }
 
   const sym = CURRENCIES[currency]?.symbol || currency;
@@ -2950,9 +3047,11 @@ function expandQuickToFullModal() {
     renderBeneficiaryChips();
   }
 
-  if (Array.isArray(r.tags)) {
-    currentSelectedTags = [...r.tags];
-    renderSelectedTagsBadges();
+  if (Array.isArray(r.tags) && r.tags.length > 0) {
+    if (el.tagSearchInput) el.tagSearchInput.value = '';
+    renderTagChipsSelector('', r.tags);
+    const tagDetails = document.getElementById('tagSectionDetails');
+    if (tagDetails) tagDetails.open = true;
   }
 
   updateConvertedPreview();
@@ -3022,6 +3121,11 @@ function renderTemplatesTab() {
               <span class="tpl-usage-badge">${tpl.usageCount || 0}次使用</span>
               <span class="tpl-manage-subtitle">${cat.label} · ${currText} · ${pModeText}</span>
             </div>
+            ${(Array.isArray(tpl.tags) && tpl.tags.length > 0)
+              ? `<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;">
+                  ${tpl.tags.map(t => `<span style="font-size: 0.72rem; color: var(--forest-green); background: #E8F3E6; padding: 1px 7px; border-radius: 6px; font-weight: 600;">#${escapeHtml(t)}</span>`).join('')}
+                 </div>`
+              : ''}
           </div>
         </div>
         <div class="tpl-manage-right">
@@ -3333,6 +3437,8 @@ function openQuickTemplateModal(template = null) {
     el.tplFormBeneficiaryRule.value = template?.beneficiaryRule?.target || 'all';
   }
   if (el.tplFormNotes) el.tplFormNotes.value = template ? (template.defaultNotes || '') : '';
+  if (el.tplTagSearchInput) el.tplTagSearchInput.value = '';
+  renderTplTagChipsSelector('', template?.tags || []);
 
   if (el.btnDeleteTemplate) {
     if (isEdit && !template.isSystemDefault) {
@@ -4597,6 +4703,20 @@ function bindEvents() {
   if (el.tplFormPaymentMode) {
     el.tplFormPaymentMode.onchange = toggleTplFixedPaymentWrap;
   }
+  if (el.tplTagSearchInput) {
+    el.tplTagSearchInput.oninput = (e) => {
+      renderTplTagChipsSelector(e.target.value);
+    };
+    el.tplTagSearchInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddTplCustomTag();
+      }
+    };
+  }
+  if (el.btnAddTplCustomTagBtn) {
+    el.btnAddTplCustomTagBtn.onclick = handleAddTplCustomTag;
+  }
   if (el.quickTemplateForm) {
     el.quickTemplateForm.onsubmit = (e) => {
       e.preventDefault();
@@ -4613,6 +4733,7 @@ function bindEvents() {
         beneficiaryRule: {
           target: el.tplFormBeneficiaryRule?.value || 'all'
         },
+        tags: Array.from(currentTplSelectedTags),
         defaultNotes: el.tplFormNotes?.value.trim() || ''
       };
 
