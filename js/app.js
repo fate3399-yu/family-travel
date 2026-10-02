@@ -3025,9 +3025,6 @@ function renderTemplatesTab() {
           </div>
         </div>
         <div class="tpl-manage-right">
-          <button type="button" class="btn-tpl-icon ${tpl.isPinned ? 'pinned' : ''}" title="${tpl.isPinned ? '取消釘選' : '釘選至最前'}" data-pin-id="${tpl.id}">
-            ${tpl.isPinned ? '📌' : '📍'}
-          </button>
           <button type="button" class="btn-tpl-icon" title="編輯模板" data-edit-id="${tpl.id}">
             ✏️
           </button>
@@ -3042,13 +3039,6 @@ function renderTemplatesTab() {
       };
       card.querySelector('.tpl-manage-left').style.cursor = 'pointer';
 
-      card.querySelector('[data-pin-id]').onclick = (e) => {
-        e.stopPropagation();
-        Storage.togglePinTemplate(tpl.id);
-        renderTemplatesTab();
-        renderQuickActions();
-      };
-
       card.querySelector('[data-edit-id]').onclick = (e) => {
         e.stopPropagation();
         openQuickTemplateModal(tpl);
@@ -3059,7 +3049,25 @@ function renderTemplatesTab() {
         openQuickInput(tpl);
       };
 
-      listContainer.appendChild(card);
+      // 🌟 包裝外層滑動操作容器 (Swipe Left to Pin)
+      const wrapper = document.createElement('div');
+      wrapper.className = 'tpl-swipe-wrapper';
+
+      const swipeActions = document.createElement('div');
+      swipeActions.className = 'tpl-swipe-actions';
+      swipeActions.innerHTML = `
+        <button type="button" class="tpl-swipe-pin-btn" aria-label="${tpl.isPinned ? '取消釘選' : '釘選至最前'}">
+          <span class="tpl-swipe-icon">${tpl.isPinned ? '📍' : '📌'}</span>
+          <span class="tpl-swipe-text">${tpl.isPinned ? '取消釘選' : '釘選'}</span>
+        </button>
+      `;
+
+      wrapper.appendChild(swipeActions);
+      wrapper.appendChild(card);
+
+      attachTemplateSwipeToPin(wrapper, card, tpl);
+
+      listContainer.appendChild(wrapper);
     });
 
     groupWrap.appendChild(listContainer);
@@ -3071,6 +3079,218 @@ function renderTemplatesTab() {
 
   // 兼容舊版歷史換匯 Accordion
   renderWallets();
+}
+
+/**
+  * 🌟 綁定模板卡片向左滑動釘選手勢 (Swipe Left to Pin)
+  */
+function attachTemplateSwipeToPin(wrapper, card, tpl) {
+  let startX = 0;
+  let startY = 0;
+  let currentX = 0;
+  let currentY = 0;
+  let isSwiping = false;
+  let isHorizontal = null;
+  let isOpen = false;
+  let justSwiped = false;
+  let isDraggingMouse = false;
+  const ACTION_WIDTH = 76;
+
+  const resetCard = () => {
+    card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
+    card.style.transform = 'translateX(0px)';
+    isOpen = false;
+    wrapper.classList.remove('is-open', 'is-swiping');
+  };
+
+  const openCard = () => {
+    card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
+    card.style.transform = `translateX(-${ACTION_WIDTH}px)`;
+    isOpen = true;
+    wrapper.classList.add('is-open');
+    wrapper.classList.remove('is-swiping');
+  };
+
+  const triggerTogglePin = () => {
+    resetCard();
+    const willBePinned = !tpl.isPinned;
+    Storage.togglePinTemplate(tpl.id);
+    showToast(willBePinned ? `📌 已將「${tpl.title}」釘選至最前` : `📍 已取消「${tpl.title}」釘選`, '📌');
+    renderTemplatesTab();
+    renderQuickActions();
+  };
+
+  // 綁定釘選按鈕點擊
+  const pinBtn = wrapper.querySelector('.tpl-swipe-pin-btn');
+  if (pinBtn) {
+    pinBtn.onclick = (e) => {
+      e.stopPropagation();
+      triggerTogglePin();
+    };
+  }
+
+  // 點擊外部關閉
+  const onDocClick = (e) => {
+    if (isOpen && !wrapper.contains(e.target)) {
+      resetCard();
+    }
+  };
+  document.addEventListener('touchstart', onDocClick, { passive: true });
+  document.addEventListener('mousedown', onDocClick);
+
+  // --- 手機觸控監聽 ---
+  card.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) return;
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    currentX = startX;
+    currentY = startY;
+    isHorizontal = null;
+    isSwiping = false;
+    card.style.transition = 'none';
+  }, { passive: true });
+
+  card.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1) return;
+    const touch = e.touches[0];
+    currentX = touch.clientX;
+    currentY = touch.clientY;
+    const diffX = currentX - startX;
+    const diffY = currentY - startY;
+
+    if (isHorizontal === null) {
+      if (Math.abs(diffX) > 6 || Math.abs(diffY) > 6) {
+        isHorizontal = Math.abs(diffX) > Math.abs(diffY);
+      }
+    }
+
+    if (isHorizontal === true) {
+      if (e.cancelable) e.preventDefault();
+      isSwiping = true;
+      justSwiped = true;
+      wrapper.classList.add('is-swiping');
+
+      let baseX = isOpen ? -ACTION_WIDTH : 0;
+      let targetX = baseX + diffX;
+
+      if (targetX > 0) {
+        targetX = targetX * 0.15; // 向右阻尼
+      } else if (targetX < -ACTION_WIDTH - 40) {
+        targetX = -ACTION_WIDTH - 40 + (targetX - (-ACTION_WIDTH - 40)) * 0.25;
+      }
+
+      card.style.transform = `translateX(${targetX}px)`;
+    }
+  }, { passive: false });
+
+  const onTouchEnd = () => {
+    if (!isSwiping) return;
+    const diffX = currentX - startX;
+    card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
+
+    if (!isOpen) {
+      if (diffX < -130) {
+        triggerTogglePin();
+      } else if (diffX < -40) {
+        openCard();
+      } else {
+        resetCard();
+      }
+    } else {
+      if (diffX > 20) {
+        resetCard();
+      } else {
+        openCard();
+      }
+    }
+
+    setTimeout(() => {
+      justSwiped = false;
+      isSwiping = false;
+      wrapper.classList.remove('is-swiping');
+    }, 250);
+  };
+
+  card.addEventListener('touchend', onTouchEnd);
+  card.addEventListener('touchcancel', onTouchEnd);
+
+  // --- 滑鼠拖曳支援 (電腦預覽相容) ---
+  card.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    isDraggingMouse = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    currentX = startX;
+    card.style.transition = 'none';
+
+    const onMouseMove = (me) => {
+      if (!isDraggingMouse) return;
+      currentX = me.clientX;
+      const diffX = currentX - startX;
+      if (Math.abs(diffX) > 8) {
+        isSwiping = true;
+        justSwiped = true;
+        wrapper.classList.add('is-swiping');
+
+        let baseX = isOpen ? -ACTION_WIDTH : 0;
+        let targetX = baseX + diffX;
+        if (targetX > 0) targetX = targetX * 0.15;
+        else if (targetX < -ACTION_WIDTH - 40) {
+          targetX = -ACTION_WIDTH - 40 + (targetX - (-ACTION_WIDTH - 40)) * 0.25;
+        }
+        card.style.transform = `translateX(${targetX}px)`;
+      }
+    };
+
+    const onMouseUp = () => {
+      isDraggingMouse = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+
+      if (isSwiping) {
+        const diffX = currentX - startX;
+        card.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
+
+        if (!isOpen) {
+          if (diffX < -130) {
+            triggerTogglePin();
+          } else if (diffX < -40) {
+            openCard();
+          } else {
+            resetCard();
+          }
+        } else {
+          if (diffX > 20) resetCard();
+          else openCard();
+        }
+
+        setTimeout(() => {
+          justSwiped = false;
+          isSwiping = false;
+          wrapper.classList.remove('is-swiping');
+        }, 250);
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  });
+
+  // 攔截點擊：若已展開則收合，若滑動結束則阻擋誤觸
+  card.addEventListener('click', (e) => {
+    if (justSwiped || isSwiping) {
+      e.stopPropagation();
+      e.preventDefault();
+      return;
+    }
+    if (isOpen) {
+      e.stopPropagation();
+      e.preventDefault();
+      resetCard();
+      return;
+    }
+  }, true);
 }
 
 function openQuickTemplateModal(template = null) {

@@ -3415,6 +3415,70 @@ body[data-theme="acnh"] .dock-btn-add #dockLabelAdd {
   margin-top: 10px;
 }
 
+/* 🌟 模板卡片滑動釘選容器 (Swipe Left to Pin) */
+.tpl-swipe-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  touch-action: pan-y;
+  user-select: none;
+  background: #FFFBEB;
+}
+
+.tpl-swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  border-radius: 16px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.tpl-swipe-wrapper.is-open .tpl-swipe-actions,
+.tpl-swipe-wrapper.is-swiping .tpl-swipe-actions {
+  pointer-events: auto;
+}
+
+.tpl-swipe-pin-btn {
+  width: 76px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  color: #FFFFFF;
+  font-weight: 800;
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0;
+  user-select: none;
+  transition: transform 0.15s ease;
+}
+
+.tpl-swipe-pin-btn:active {
+  transform: scale(0.92);
+}
+
+.tpl-swipe-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.tpl-swipe-wrapper .tpl-manage-card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+}
+
 .tpl-manage-card {
   display: flex;
   align-items: center;
