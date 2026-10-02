@@ -3013,14 +3013,14 @@ function renderTemplatesTab() {
       card.innerHTML = `
         <div class="tpl-manage-left">
           <div class="tpl-manage-icon">${tpl.icon}</div>
-          <div style="flex: 1; min-width: 0;">
-            <div class="tpl-manage-title">
-              <span>${tpl.title}</span>
-              ${tpl.isPinned ? '<span style="font-size: 0.72rem; color: #D97706;" title="已釘選在最前">📌</span>' : ''}
-              <span style="font-size: 0.65rem; background: #EAF3E8; color: var(--forest-green); padding: 1px 6px; border-radius: 999px; font-weight: 700;">${tpl.usageCount || 0}次使用</span>
+          <div class="tpl-manage-info">
+            <div class="tpl-manage-title-row">
+              <span class="tpl-manage-title">${escapeHtml(tpl.title)}</span>
+              ${tpl.isPinned ? '<span class="tpl-pin-badge" title="已釘選在最前">📌</span>' : ''}
             </div>
-            <div class="tpl-manage-subtitle">
-              ${cat.label} · ${currText} · ${pModeText} · ${bRuleText}
+            <div class="tpl-manage-meta-row">
+              <span class="tpl-usage-badge">${tpl.usageCount || 0}次使用</span>
+              <span class="tpl-manage-subtitle">${cat.label} · ${currText} · ${pModeText}</span>
             </div>
           </div>
         </div>
@@ -3031,11 +3031,16 @@ function renderTemplatesTab() {
           <button type="button" class="btn-tpl-icon" title="編輯模板" data-edit-id="${tpl.id}">
             ✏️
           </button>
-          <button type="button" class="btn-tpl-icon" title="立即使用此模板記帳" data-use-id="${tpl.id}" style="color: var(--forest-green); font-weight: 800;">
+          <button type="button" class="btn-tpl-action" title="立即使用此模板記帳" data-use-id="${tpl.id}">
             ⚡ 記帳
           </button>
         </div>
       `;
+
+      card.querySelector('.tpl-manage-left').onclick = () => {
+        openQuickInput(tpl);
+      };
+      card.querySelector('.tpl-manage-left').style.cursor = 'pointer';
 
       card.querySelector('[data-pin-id]').onclick = (e) => {
         e.stopPropagation();
