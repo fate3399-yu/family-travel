@@ -169,12 +169,14 @@ const el = {
   // 統計與圖表分析 (移植 money 專案頂級視覺)
   btnTabPie: document.getElementById('btn-tab-pie'),
   btnTabBar: document.getElementById('btn-tab-bar'),
+  btnTabTag: document.getElementById('btn-tab-tag'),
   btnTabMember: document.getElementById('btn-tab-member'),
   btnTabPayer: document.getElementById('btn-tab-payer') || document.getElementById('btn-tab-member'),
   btnTabBeneficiary: document.getElementById('btn-tab-beneficiary'),
   chartTotalBadge: document.getElementById('chart-total-badge'),
   chartContainerPie: document.getElementById('chart-container-pie'),
   chartContainerBar: document.getElementById('chart-container-bar'),
+  chartContainerTag: document.getElementById('chart-container-tag'),
   chartContainerMember: document.getElementById('chart-container-member'),
   chartContainerPayer: document.getElementById('chart-container-payer') || document.getElementById('chart-container-member'),
   chartContainerBeneficiary: document.getElementById('chart-container-beneficiary'),
@@ -647,19 +649,21 @@ function escapeHtml(str) {
 }
 
 /**
- * 圖表子視圖切換 (圓餅圖 / 分類排行 / 成員支出 / 花在誰身上)
+ * 圖表子視圖切換 (圓餅圖 / 分類排行 / 分類標籤 / 成員支出 / 花在誰身上)
  */
 function switchChartTab(tab) {
   if (tab === 'member') tab = 'payer';
   currentChartTab = tab;
   if (el.btnTabPie) el.btnTabPie.classList.toggle('active', tab === 'pie');
   if (el.btnTabBar) el.btnTabBar.classList.toggle('active', tab === 'bar');
+  if (el.btnTabTag) el.btnTabTag.classList.toggle('active', tab === 'tag');
   if (el.btnTabPayer) el.btnTabPayer.classList.toggle('active', tab === 'payer');
   if (el.btnTabBeneficiary) el.btnTabBeneficiary.classList.toggle('active', tab === 'beneficiary');
   if (el.btnTabMember) el.btnTabMember.classList.toggle('active', tab === 'payer');
 
   if (el.chartContainerPie) el.chartContainerPie.style.display = (tab === 'pie') ? 'flex' : 'none';
   if (el.chartContainerBar) el.chartContainerBar.style.display = (tab === 'bar') ? 'flex' : 'none';
+  if (el.chartContainerTag) el.chartContainerTag.style.display = (tab === 'tag') ? 'flex' : 'none';
   if (el.chartContainerPayer) el.chartContainerPayer.style.display = (tab === 'payer') ? 'flex' : 'none';
   if (el.chartContainerBeneficiary) el.chartContainerBeneficiary.style.display = (tab === 'beneficiary') ? 'flex' : 'none';
   if (el.chartContainerMember && el.chartContainerMember !== el.chartContainerPayer) {
@@ -1960,7 +1964,204 @@ function renderAnalytics() {
     }
   }
 
-  // 3. 繪製「成員支出」 (誰付款墊付 / 掏錢支付的實際支出統計)
+  // 3. 繪製「分類標籤」 (依標籤累計開銷、佔比、筆數與展開明細)
+  if (el.chartContainerTag) {
+    el.chartContainerTag.innerHTML = '';
+    const tagColors = [
+      '#10B981', '#3B82F6', '#F59E0B', '#EC4899', '#8B5CF6',
+      '#14B8A6', '#F97316', '#6366F1', '#06B6D4', '#84CC16'
+    ];
+
+    const tagMap = {}; // { [tagName]: { totalAmt: 0, txs: [] } }
+    let untaggedAmt = 0;
+    const untaggedTxs = [];
+
+    currentTransactions.filter((t) => t.type === 'expense').forEach((tx) => {
+      const baseAmt = toBaseAmount(tx, currentTrip.baseCurrency);
+      if (Array.isArray(tx.tags) && tx.tags.length > 0) {
+        tx.tags.forEach((tag) => {
+          const cleanTag = String(tag).trim();
+          if (!cleanTag) return;
+          if (!tagMap[cleanTag]) {
+            tagMap[cleanTag] = { totalAmt: 0, txs: [] };
+          }
+          tagMap[cleanTag].totalAmt += baseAmt;
+          tagMap[cleanTag].txs.push(tx);
+        });
+      } else {
+        untaggedAmt += baseAmt;
+        untaggedTxs.push(tx);
+      }
+    });
+
+    const sortedTags = Object.entries(tagMap)
+      .filter(([_, data]) => data.totalAmt > 0)
+      .sort((a, b) => b[1].totalAmt - a[1].totalAmt);
+
+    if (sortedTags.length === 0 && untaggedAmt <= 0) {
+      el.chartContainerTag.innerHTML = `
+        <div style="text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px 0;">
+          🌱 尚無支出紀錄
+        </div>
+      `;
+    } else if (sortedTags.length === 0 && untaggedAmt > 0) {
+      el.chartContainerTag.innerHTML = `
+        <div style="text-align: center; background: #FAFCF9; border: 1px dashed #D2E2D1; border-radius: var(--radius-md); padding: 20px 16px;">
+          <div style="font-size: 1.5rem; margin-bottom: 6px;">🏷️</div>
+          <div style="font-size: 0.88rem; font-weight: 800; color: var(--forest-dark); margin-bottom: 4px;">尚未加入任何分類標籤</div>
+          <div style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.5;">
+            目前全團共有 NT$ ${formatNumber(untaggedAmt)} 尚未標記標籤。<br>
+            記帳時輸入 <span style="color:var(--forest-green); font-weight:700;">#美食</span>、<span style="color:var(--forest-green); font-weight:700;">#藥妝</span>、<span style="color:var(--forest-green); font-weight:700;">#伴手禮</span> 等標籤，就能在此檢視多維度開銷排行！
+          </div>
+        </div>
+      `;
+    } else {
+      sortedTags.forEach(([tagName, data], index) => {
+        const color = tagColors[index % tagColors.length];
+        const pct = total > 0 ? Math.round((data.totalAmt / total) * 100) : 0;
+
+        let txRowsHtml = '';
+        data.txs.forEach((tx) => {
+          const baseAmt = toBaseAmount(tx, currentTrip.baseCurrency);
+          const curr = CURRENCIES[tx.currency] || { symbol: '$' };
+          const payerName = currentTrip.members?.find((mem) => mem.id === tx.payerId)?.name || '夥伴';
+          const cat = CATEGORIES[tx.category] || CATEGORIES.other;
+          txRowsHtml += `
+            <div class="member-tx-row">
+              <div class="member-tx-left">
+                <span class="member-tx-title">${cat.icon} ${escapeHtml(tx.notes || cat.label)}</span>
+                <span class="member-tx-meta">${tx.datetime?.slice(5, 16) || ''} · 由 ${escapeHtml(payerName)} 支付</span>
+              </div>
+              <div class="member-tx-right">
+                <div class="member-tx-amt-base">NT$ ${formatNumber(baseAmt)}</div>
+                ${tx.currency !== currentTrip.baseCurrency ? `<div class="member-tx-amt-orig">${curr.symbol}${formatNumber(tx.amount)}</div>` : ''}
+              </div>
+            </div>
+          `;
+        });
+
+        const card = document.createElement('div');
+        card.className = 'tag-stat-card';
+        card.innerHTML = `
+          <div class="tag-stat-header">
+            <div class="tag-stat-badge-wrap">
+              <span class="tag-stat-badge" style="background: ${color};">#${escapeHtml(tagName)}</span>
+              <span class="tag-stat-count">${data.txs.length} 筆消費</span>
+            </div>
+            <div class="tag-stat-amount-wrap">
+              <div class="tag-stat-amount">NT$ ${formatNumber(data.totalAmt)}</div>
+              <div class="tag-stat-pct">佔全團 ${pct}%</div>
+            </div>
+          </div>
+
+          <div class="bar-chart-track" style="margin: 6px 0 8px 0;">
+            <div class="bar-chart-fill" style="width: ${pct}%; background: ${color};"></div>
+          </div>
+
+          <button type="button" class="btn-toggle-member-details" data-expanded="false">
+            <span>📋 查看「#${escapeHtml(tagName)}」明細 (${data.txs.length} 筆)</span>
+            <span class="toggle-icon">▾</span>
+          </button>
+          <div class="member-tx-details-list" style="display: none;">
+            ${txRowsHtml}
+          </div>
+        `;
+
+        const toggleBtn = card.querySelector('.btn-toggle-member-details');
+        if (toggleBtn) {
+          const detailsList = card.querySelector('.member-tx-details-list');
+          const toggleIcon = card.querySelector('.toggle-icon');
+          toggleBtn.onclick = () => {
+            const isExpanded = toggleBtn.getAttribute('data-expanded') === 'true';
+            if (isExpanded) {
+              detailsList.style.display = 'none';
+              toggleBtn.setAttribute('data-expanded', 'false');
+              toggleIcon.textContent = '▾';
+            } else {
+              detailsList.style.display = 'flex';
+              toggleBtn.setAttribute('data-expanded', 'true');
+              toggleIcon.textContent = '▴';
+            }
+          };
+        }
+
+        el.chartContainerTag.appendChild(card);
+      });
+
+      // 若有未分類標籤的支出，在最下方展示貼心統計卡
+      if (untaggedAmt > 0) {
+        const untaggedPct = total > 0 ? Math.round((untaggedAmt / total) * 100) : 0;
+        let uRowsHtml = '';
+        untaggedTxs.forEach((tx) => {
+          const baseAmt = toBaseAmount(tx, currentTrip.baseCurrency);
+          const payerName = currentTrip.members?.find((mem) => mem.id === tx.payerId)?.name || '夥伴';
+          const cat = CATEGORIES[tx.category] || CATEGORIES.other;
+          uRowsHtml += `
+            <div class="member-tx-row">
+              <div class="member-tx-left">
+                <span class="member-tx-title">${cat.icon} ${escapeHtml(tx.notes || cat.label)}</span>
+                <span class="member-tx-meta">${tx.datetime?.slice(5, 16) || ''} · 由 ${escapeHtml(payerName)} 支付</span>
+              </div>
+              <div class="member-tx-right">
+                <div class="member-tx-amt-base">NT$ ${formatNumber(baseAmt)}</div>
+              </div>
+            </div>
+          `;
+        });
+
+        const untaggedCard = document.createElement('div');
+        untaggedCard.className = 'tag-stat-card';
+        untaggedCard.style.border = '1px dashed #D5E1D3';
+        untaggedCard.style.background = '#F6F9F5';
+        untaggedCard.innerHTML = `
+          <div class="tag-stat-header">
+            <div class="tag-stat-badge-wrap">
+              <span class="tag-stat-badge" style="background: #94A3B8; color: #FFFFFF;">未標記標籤</span>
+              <span class="tag-stat-count">${untaggedTxs.length} 筆消費</span>
+            </div>
+            <div class="tag-stat-amount-wrap">
+              <div class="tag-stat-amount" style="color: var(--text-secondary);">NT$ ${formatNumber(untaggedAmt)}</div>
+              <div class="tag-stat-pct">佔全團 ${untaggedPct}%</div>
+            </div>
+          </div>
+
+          <div class="bar-chart-track" style="margin: 6px 0 8px 0;">
+            <div class="bar-chart-fill" style="width: ${untaggedPct}%; background: #94A3B8;"></div>
+          </div>
+
+          <button type="button" class="btn-toggle-member-details" data-expanded="false">
+            <span>📋 查看未標記明細 (${untaggedTxs.length} 筆)</span>
+            <span class="toggle-icon">▾</span>
+          </button>
+          <div class="member-tx-details-list" style="display: none;">
+            ${uRowsHtml}
+          </div>
+        `;
+
+        const uToggleBtn = untaggedCard.querySelector('.btn-toggle-member-details');
+        if (uToggleBtn) {
+          const uDetailsList = untaggedCard.querySelector('.member-tx-details-list');
+          const uToggleIcon = untaggedCard.querySelector('.toggle-icon');
+          uToggleBtn.onclick = () => {
+            const isExpanded = uToggleBtn.getAttribute('data-expanded') === 'true';
+            if (isExpanded) {
+              uDetailsList.style.display = 'none';
+              uToggleBtn.setAttribute('data-expanded', 'false');
+              uToggleIcon.textContent = '▾';
+            } else {
+              uDetailsList.style.display = 'flex';
+              uToggleBtn.setAttribute('data-expanded', 'true');
+              uToggleIcon.textContent = '▴';
+            }
+          };
+        }
+
+        el.chartContainerTag.appendChild(untaggedCard);
+      }
+    }
+  }
+
+  // 4. 繪製「成員支出」 (誰付款墊付 / 掏錢支付的實際支出統計)
   const payerContainer = el.chartContainerPayer || el.chartContainerMember;
   if (payerContainer) {
     payerContainer.innerHTML = '';
@@ -4698,9 +4899,10 @@ function openAddPaymentItemModal() {
     };
   });
 
-  // 圖表切換按鈕 (圓餅圖 / 分類排行 / 成員支出 / 花在誰身上)
+  // 圖表切換按鈕 (圓餅圖 / 分類排行 / 分類標籤 / 成員支出 / 花在誰身上)
   if (el.btnTabPie) el.btnTabPie.onclick = () => switchChartTab('pie');
   if (el.btnTabBar) el.btnTabBar.onclick = () => switchChartTab('bar');
+  if (el.btnTabTag) el.btnTabTag.onclick = () => switchChartTab('tag');
   if (el.btnTabPayer) el.btnTabPayer.onclick = () => switchChartTab('payer');
   if (el.btnTabBeneficiary) el.btnTabBeneficiary.onclick = () => switchChartTab('beneficiary');
   if (el.btnTabMember) el.btnTabMember.onclick = () => switchChartTab('payer');

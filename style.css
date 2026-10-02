@@ -2152,6 +2152,62 @@ details.payment-category-group[open] .group-toggle-arrow {
   border-radius: var(--radius-pill);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.chart-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 🏷️ 分類標籤統計分析卡片樣式 */
+.tag-stat-card {
+  background: #FAFCF9;
+  border: 1px solid #E2EAE0;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  transition: var(--transition);
+}
+
+.tag-stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.tag-stat-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tag-stat-badge {
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: #FFFFFF;
+}
+
+.tag-stat-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.tag-stat-amount-wrap {
+  text-align: right;
+}
+
+.tag-stat-amount {
+  font-family: var(--font-number);
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: var(--forest-dark);
+}
+
+.tag-stat-pct {
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 .chart-tab-pill {

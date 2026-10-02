@@ -155,10 +155,11 @@
           </span>
         </div>
 
-        <!-- 切換圖表按鈕 (Segmented Pill Controls - 4 大精緻分析) -->
+        <!-- 切換圖表按鈕 (Segmented Pill Controls - 5 大精緻分析) -->
         <div class="chart-tab-bar" style="margin-bottom: 14px;">
           <button type="button" class="chart-tab-pill active" id="btn-tab-pie">圓餅佔比</button>
           <button type="button" class="chart-tab-pill" id="btn-tab-bar">分類排行</button>
+          <button type="button" class="chart-tab-pill" id="btn-tab-tag">分類標籤</button>
           <button type="button" class="chart-tab-pill" id="btn-tab-payer">成員支出</button>
           <button type="button" class="chart-tab-pill" id="btn-tab-beneficiary">花在誰身上</button>
         </div>
@@ -186,12 +187,17 @@
           <!-- 動態渲染長條圖 -->
         </div>
 
-        <!-- 3. 成員支出容器 (誰付款墊付/拿錢出帳) -->
+        <!-- 3. 分類標籤容器 (標籤花費分佈與排行) -->
+        <div id="chart-container-tag" style="display:none; flex-direction:column; gap:10px;">
+          <!-- 動態渲染標籤開銷統計 -->
+        </div>
+
+        <!-- 4. 成員支出容器 (誰付款墊付/拿錢出帳) -->
         <div id="chart-container-payer" style="display:none; flex-direction:column; gap:10px;">
           <!-- 動態渲染成員實際支出 -->
         </div>
 
-        <!-- 4. 花在誰身上容器 (花費對象與受用分析) -->
+        <!-- 5. 花在誰身上容器 (花費對象與受用分析) -->
         <div id="chart-container-beneficiary" style="display:none; flex-direction:column; gap:10px;">
           <!-- 動態渲染各成員花費統計 -->
         </div>
