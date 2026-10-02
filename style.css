@@ -3415,24 +3415,25 @@ body[data-theme="acnh"] .dock-btn-add #dockLabelAdd {
   margin-top: 10px;
 }
 
-/* 🌟 模板卡片滑動釘選容器 (Swipe Left to Pin) */
+/* 🌟 模板卡片雙向滑動操作容器 (向左滑刪除、向右滑釘選) */
 .tpl-swipe-wrapper {
   position: relative;
   overflow: hidden;
   border-radius: 16px;
   touch-action: pan-y;
   user-select: none;
-  background: #FFFBEB;
+  background: #F8FAFC;
 }
 
-.tpl-swipe-actions {
+/* 左側釘選操作區 (向右滑動時露出) */
+.tpl-swipe-action-pin {
   position: absolute;
   top: 0;
-  right: 0;
+  left: 0;
   bottom: 0;
-  width: 100%;
+  width: 50%;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: stretch;
   background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
   border-radius: 16px;
@@ -3440,12 +3441,30 @@ body[data-theme="acnh"] .dock-btn-add #dockLabelAdd {
   pointer-events: none;
 }
 
-.tpl-swipe-wrapper.is-open .tpl-swipe-actions,
-.tpl-swipe-wrapper.is-swiping .tpl-swipe-actions {
+/* 右側刪除操作區 (向左滑動時露出) */
+.tpl-swipe-action-delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 50%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+  border-radius: 16px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.tpl-swipe-wrapper.is-open-pin .tpl-swipe-action-pin,
+.tpl-swipe-wrapper.is-open-delete .tpl-swipe-action-delete,
+.tpl-swipe-wrapper.is-swiping .tpl-swipe-action-pin,
+.tpl-swipe-wrapper.is-swiping .tpl-swipe-action-delete {
   pointer-events: auto;
 }
 
-.tpl-swipe-pin-btn {
+.tpl-swipe-btn {
   width: 76px;
   height: 100%;
   display: flex;
@@ -3464,7 +3483,7 @@ body[data-theme="acnh"] .dock-btn-add #dockLabelAdd {
   transition: transform 0.15s ease;
 }
 
-.tpl-swipe-pin-btn:active {
+.tpl-swipe-btn:active {
   transform: scale(0.92);
 }
 
